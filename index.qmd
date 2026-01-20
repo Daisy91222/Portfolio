@@ -1,5 +1,5 @@
 ---
-title: "MUSA 5080 Portfolio"
+title: "MUSA 5080 Portfolio for Daisy"
 ---
 
 # Welcome to My Portfolio
@@ -18,7 +18,7 @@ Advanced spatial analysis and data science for urban planning and public policy.
 
 ## About Me
 
-I am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on not only basic planning strategy but also quatification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone
+I am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on both planning concepts and quatification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone
 
 ## Contact
 

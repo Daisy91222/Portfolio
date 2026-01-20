@@ -7,16 +7,20 @@ title: "MUSA 5080 Portfolio"
 This portfolio documents my learning journey in Public Policy Analytics (MUSA 5080).
 
 ## About This Course
+
 Advanced spatial analysis and data science for urban planning and public policy.
 
 ## Portfolio Structure
-- **Weekly Notes:** My learning reflections and key concepts
-- **Labs:** Completed assignments and analyses
-- **Final Project:** Capstone modeling challenge
+
+-   **Weekly Notes:** My learning reflections and key concepts
+-   **Labs:** Completed assignments and analyses
+-   **Final Project:** Capstone modeling challenge
 
 ## About Me
+
 I am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on not only basic planning strategy but also quatification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone
 
 ## Contact
-- Email: [yuan77@upenn.edu]
-- GitHub: [@Daisy91222]
+
+-   Email: yuan77\@upenn.edu
+-   GitHub: @Daisy91222

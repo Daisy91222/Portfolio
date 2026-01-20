@@ -15,8 +15,8 @@ Advanced spatial analysis and data science for urban planning and public policy.
 - **Final Project:** Capstone modeling challenge
 
 ## About Me
-[Students will customize this section]
+I am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on not only basic planning strategy but also quatification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone
 
 ## Contact
-- Email: [your.email@upenn.edu]
-- GitHub: [@your-username]
+- Email: [yuan77@upenn.edu]
+- GitHub: [@Daisy91222]

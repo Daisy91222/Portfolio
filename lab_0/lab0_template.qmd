@@ -186,13 +186,12 @@ car_data %>%
 
 # Find diesel cars less than 10 years old
 car_data %>%
-  filter(age < 10 & 'Fuel type' == "Diesel")
-
-```
+  filter(`Fuel type` == "Diesel" & age < 10)
+ ```
 
 **Question:** How many diesel cars are less than 10 years old?
 
-**Your answer:** [YOUR ANSWER]
+**Your answer:** 2040
 
 # Exercise 5: Grouping and Summarizing
 
@@ -207,9 +206,18 @@ avg_price_by_brand <- car_data %>%
 avg_price_by_brand
 
 # Calculate average mileage by fuel type
+avg_mileage_by_fuel <- car_data %>%
+  group_by(`Fuel type`) %>%
+  summarize(avg_mileage = mean(Mileage, na.rm = TRUE))
 
+avg_mileage_by_fuel
 
 # Count cars by manufacturer
+cars_by_brand <- car_data %>%
+  group_by(Manufacturer) %>%
+  summarize(count = n())
+
+cars_by_brand
 
 ```
 

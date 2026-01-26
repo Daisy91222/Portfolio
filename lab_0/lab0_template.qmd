@@ -12,20 +12,27 @@ format:
 execute:
   warning: false
   message: false
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
 # Overview
 
-Welcome to your first lab! In this (not graded) assignment, you'll practice the fundamental dplyr operations I overviewed in class using car sales data. This lab will help you get comfortable with:
+Welcome to your first lab! In this (not graded) assignment, you'll
+practice the fundamental dplyr operations I overviewed in class using
+car sales data. This lab will help you get comfortable with:
 
-- Basic data exploration
-- Column selection and manipulation  
-- Creating new variables
-- Filtering data
-- Grouping and summarizing
+-   Basic data exploration
+-   Column selection and manipulation\
+-   Creating new variables
+-   Filtering data
+-   Grouping and summarizing
 
-**Instructions:** Copy this template into your portfolio repository under a `lab_0/` folder, then complete each section with your code and answers. You will write the code under the comment section in each chunk.
-Be sure to also copy the data folder into your `lab_0` folder.
+**Instructions:** Copy this template into your portfolio repository
+under a `lab_0/` folder, then complete each section with your code and
+answers. You will write the code under the comment section in each
+chunk. Be sure to also copy the data folder into your `lab_0` folder.
 
 # Setup
 
@@ -49,21 +56,18 @@ Explore the structure of your data and answer these questions:
 glimpse(car_data)
 
 # Check the column names
+colnames(car_data)
 
 # Look at the first few rows
 head(car_data)
 ```
 
-**Questions to answer:**
-- How many rows and columns does the dataset have?
-- What types of variables do you see (numeric, character, etc.)?
-- Are there any column names that might cause problems? Why?
+**Questions to answer:** - How many rows and columns does the dataset
+have? - What types of variables do you see (numeric, character, etc.)? -
+Are there any column names that might cause problems? Why?
 
-**Your answers:**
-- Rows: [YOUR ANSWER]
-- Columns: [YOUR ANSWER]  
-- Variable types: [YOUR ANSWER]
-- Problematic names: [YOUR ANSWER]
+**Your answers:** - Rows: \[YOUR ANSWER\] - Columns: \[YOUR ANSWER\]\
+- Variable types: \[YOUR ANSWER\] - Problematic names: \[YOUR ANSWER\]
 
 ## 1.2 Tibble vs Data Frame
 
@@ -80,7 +84,10 @@ car_df
 
 **Question:** What differences do you notice in how they print?
 
-**Your answer:** "Glimpse" provides names of columns at the left end, following specific categories each column has. "Head" gives us what exactly in the first several lines where we can show how each line of data is illustrating.
+**Your answer:** "Glimpse" provides names of columns at the left end,
+following specific categories each column has. "Head" gives us what
+exactly in the first several lines where we can show how each line of
+data is illustrating.
 
 # Exercise 2: Basic Column Operations
 
@@ -116,9 +123,11 @@ car_data <- car_data %>%
 names(car_data)
 ```
 
-**Question:** Why did we need backticks around `Year of manufacture` but not around `year`?
+**Question:** Why did we need backticks around `Year of manufacture` but
+not around `year`?
 
-**Your answer:** Because there is space within the name and we need backticks to identify it as a whole name instead of separate words.
+**Your answer:** Because there is space within the name and we need
+backticks to identify it as a whole name instead of separate words.
 
 # Exercise 3: Creating New Columns
 
@@ -187,7 +196,7 @@ car_data %>%
 # Find diesel cars less than 10 years old
 car_data %>%
   filter(`Fuel type` == "Diesel" & age < 10)
- ```
+```
 
 **Question:** How many diesel cars are less than 10 years old?
 
@@ -229,14 +238,13 @@ car_data %>%
   count(price_category)
 ```
 
-
 # Submission Notes
 
-**To submit this lab:**
-1. Make sure your code runs without errors
-2. Fill in all the "[YOUR ANSWER]" sections and complete all of the empty code! 
-3. Save this file in your portfolio's `lab_0/` folder
-4. Commit and push to GitHub
-5. Check that it appears on your GitHub Pages portfolio site
+**To submit this lab:** 1. Make sure your code runs without errors 2.
+Fill in all the "\[YOUR ANSWER\]" sections and complete all of the empty
+code! 3. Save this file in your portfolio's `lab_0/` folder 4. Commit
+and push to GitHub 5. Check that it appears on your GitHub Pages
+portfolio site
 
-**Questions?** Post on the canvas discussion board or come to office hours!
+**Questions?** Post on the canvas discussion board or come to office
+hours!

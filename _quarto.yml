@@ -8,6 +8,10 @@ website:
     left:
       - href: index.qmd
         text: Home
+      - text: Labs
+        menu:
+          - href: lab/lab_0/index.qmd
+            text: "Lab 0: dplyr Basics"
 
 format:
   html:

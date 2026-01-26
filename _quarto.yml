@@ -10,7 +10,7 @@ website:
         text: Home
       - text: Labs
         menu: 
-        - herf: lab_0/lab0_template.qmd
+        - href: lab_0/lab0_template.qmd
           text: "Lab 0: dplyr Basics"
 
 format:

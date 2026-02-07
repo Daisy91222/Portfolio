@@ -14,10 +14,6 @@ website:
           text: "Lab 0: dplyr Basics"
         - href: lab_1/lab1_template.qmd
           text: "Lab 1: Census Data Quality for Policy Decisions"
-<<<<<<< HEAD
-
-=======
->>>>>>> f24d1d59ec868d4ca2b1156e2025e19fba796772
 format:
   html:
     theme: cosmo

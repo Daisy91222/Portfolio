@@ -22,5 +22,5 @@ I am a first-year City Planning student in Penn concentrating in urban design an
 
 ## Contact
 
--   Email: yuan77@upenn.edu
+-   Email: yuan77\@upenn.edu
 -   GitHub: @Daisy91222

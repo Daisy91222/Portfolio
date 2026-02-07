@@ -1,0 +1,515 @@
+---
+title: "Lab 1: Census Data Quality for Policy Decisions"
+subtitle: "Evaluating Data Reliability for Algorithmic Decision-Making"
+author: "Daisy Yuan"
+date: today
+format: 
+  html:
+    code-fold: false
+    toc: true
+    toc-location: left
+    theme: cosmo
+execute:
+  warning: false
+  message: false
+---
+
+# Assignment Overview
+
+## Scenario
+
+You are a data analyst for the **Florida Department of Human Services**. The department is considering implementing an algorithmic system to identify communities that should receive priority for social service funding and outreach programs. Your supervisor has asked you to evaluate the quality and reliability of available census data to inform this decision.
+
+Drawing on our Week 2 discussion of algorithmic bias, you need to assess not just what the data shows, but how reliable it is and what communities might be affected by data quality issues.
+
+## Learning Objectives
+
+- Apply dplyr functions to real census data for policy analysis
+- Evaluate data quality using margins of error 
+- Connect technical analysis to algorithmic decision-making
+- Identify potential equity implications of data reliability issues
+- Create professional documentation for policy stakeholders
+
+## Submission Instructions
+
+**Submit by posting your updated portfolio link on Canvas.** Your assignment should be accessible at `your-portfolio-url/labs/lab_1/`
+
+Make sure to update your `_quarto.yml` navigation to include this assignment under an "Labs" menu.
+
+# Part 1: Portfolio Integration
+
+Create this assignment in your portfolio repository under an `labs/lab_1/` folder structure. Update your navigation menu to include:
+
+```
+- text: Assignments
+  menu:
+    - href: labs/lab_1/your_file_name.qmd
+      text: "Lab 1: Census Data Exploration"
+```
+If there is a special character like a colon, you need use double quote mark so that the quarto can identify this as text
+
+# Setup
+
+```{r setup}
+# Load required packages (hint: you need tidycensus, tidyverse, and knitr)
+library(tidycensus)
+library(tidyverse)
+library(knitr)
+
+# Set your Census API key
+census_api_key(Sys.getenv("8247de17bf2632ed27a8923d65c4be9ed2eeebb9"))
+
+# Choose your state for analysis - assign it to a variable called my_state
+my_state <- "FL"
+```
+
+**State Selection:** I have chosen **Florida** for this analysis because: **I really enjoy living here while travelling and would like a better understanding of its demographic characteristics**
+
+# Part 2: County-Level Resource Assessment
+
+## 2.1 Data Retrieval
+
+**Your Task:** Use `get_acs()` to retrieve county-level data for your chosen state.
+
+**Requirements:**
+- Geography: county level
+- Variables: median household income (B19013_001) and total population (B01003_001)  
+- Year: 2022
+- Survey: acs5
+- Output format: wide
+
+**Hint:** Remember to give your variables descriptive names using the `variables = c(name = "code")` syntax.
+
+```{r county-data}
+# Write your get_acs() code here
+
+county_data <- get_acs(
+  geography = "county",
+  variables = c(
+    total_pop = "B01003_001",
+    median_hh_income = "B19013_001"
+  ),
+  state = my_state,
+  year = 2022,
+  survey = "acs5",
+  output = "wide"
+)
+
+# Clean the county names to remove state name and "County" 
+# Hint: use mutate() with str_remove()
+county_data <- county_data %>%
+  mutate(county_name = NAME %>%
+           str_remove(paste0(",\\s*", my_state, "$")) %>%
+           str_remove("\\s+County$"))
+
+# Display the first few rows
+head(county_data)
+```
+
+## 2.2 Data Quality Assessment
+
+**Your Task:** Calculate margin of error percentages and create reliability categories.
+
+**Requirements:**
+- Calculate MOE percentage: (margin of error / estimate) * 100
+- Create reliability categories:
+  - High Confidence: MOE < 5%
+  - Moderate Confidence: MOE 5-10%  
+  - Low Confidence: MOE > 10%
+- Create a flag for unreliable estimates (MOE > 10%)
+
+**Hint:** Use `mutate()` with `case_when()` for the categories.
+
+```{r income-reliability}
+# Calculate MOE percentage and reliability categories using mutate()
+county_reliability <- county_data %>%
+  mutate(
+    moe_pct = round((median_hh_incomeM / median_hh_incomeE) * 100, 2),
+    reliability_category = case_when(
+      moe_pct < 5 ~ "High Confidence",
+      moe_pct <= 10 ~ "Moderate Confidence",
+      TRUE ~ "Low Confidence"
+    ),
+    unreliable_flag = moe_pct > 10
+  )
+# Create a summary showing count of counties in each reliability category
+reliability_summary <- county_reliability %>%
+  count(reliability_category, name = "n_counties") %>%
+  mutate(
+    pct_counties = round(n_counties / sum(n_counties) * 100, 2)
+  )
+
+# Hint: use count() and mutate() to add percentages
+```
+
+## 2.3 High Uncertainty Counties
+
+**Your Task:** Identify the 5 counties with the highest MOE percentages.
+
+**Requirements:**
+- Sort by MOE percentage (highest first)
+- Select the top 5 counties
+- Display: county name, median income, margin of error, MOE percentage, reliability category
+- Format as a professional table using `kable()`
+
+**Hint:** Use `arrange()`, `slice()`, and `select()` functions.
+
+```{r high-uncertainty}
+# Create table of top 5 counties by MOE percentage
+top5_moe <- county_reliability %>%
+  arrange(desc(moe_pct)) %>%
+  slice_head(n = 5) %>%
+  select(
+    county_name,
+    median_hh_incomeE,
+    median_hh_incomeM,
+    moe_pct,
+    reliability_category
+  )
+
+# Format as table with kable() - include appropriate column names and caption
+kable(
+  top5_moe,
+  col.names = c(
+    "County",
+    "Median HH Income (Estimate)",
+    "Median HH Income (MOE)",
+    "MOE (%)",
+    "Reliability Category"
+  ),
+  caption = "Top 5 Florida Counties by Median Household Income MOE Percentage (ACS 2022 5-year)"
+)
+
+```
+
+**Data Quality Commentary:**
+Algorithms that treat county median income as precise will be least reliable in Lafayette and Glades, because their MOE is so large that small differences versus other counties can be noise. That can push these counties into the wrong “risk” or “need” tier, which means funding, services, or eligibility rules could get wrongly allocated. Higher uncertainty often happens where income distributions are uneven, so the median shifts more across samples.
+
+# Part 3: Neighborhood-Level Analysis
+
+## 3.1 Focus Area Selection
+
+**Your Task:** Select 2-3 counties from your reliability analysis for detailed tract-level study.
+
+**Strategy:** Choose counties that represent different reliability levels (e.g., 1 high confidence, 1 moderate, 1 low confidence) to compare how data quality varies.
+
+```{r select-counties}
+# Use filter() to select 2-3 counties from your county_reliability data
+# Store the selected counties in a variable called selected_counties
+selected_counties <- county_reliability %>%
+  group_by(reliability_category) %>%
+  slice_max(moe_pct, n = 1, with_ties = FALSE) %>%  # the row that is the least confident in each category
+  ungroup() %>%
+  select(GEOID, county_name, median_hh_incomeE, moe_pct, reliability_category)
+
+
+# Display the selected counties with their key characteristics
+# Show: county name, median income, MOE percentage, reliability category
+head(selected_counties)
+```
+
+**Comment on the output:** I picked the least confident rows in each category for comparison, so that we know how
+different categories differ from each other.
+
+## 3.2 Tract-Level Demographics
+
+**Your Task:** Get demographic data for census tracts in your selected counties.
+
+**Requirements:**
+- Geography: tract level
+- Variables: white alone (B03002_003), Black/African American (B03002_004), Hispanic/Latino (B03002_012), total population (B03002_001)
+- Use the same state and year as before
+- Output format: wide
+- **Challenge:** You'll need county codes, not names. Look at the GEOID patterns in your county data for hints.
+
+```{r tract-demographics}
+# Define your race/ethnicity variables with descriptive names
+race_vars <- c(
+  white = "B03002_003",      # white alone
+  black_african = "B03002_004",  # Black/African American
+  hispanic_latino = "B03002_012",      # Hispanic/Latino
+  total = "B03002_001"      # total population
+)
+# Use get_acs() to retrieve tract-level data
+# Hint: You may need to specify county codes in the county parameter
+# Calculate percentage of each group using mutate()
+# Create percentages for white, Black, and Hispanic populations
+selected_fips <- selected_counties %>%
+  mutate(county_fips = str_sub(GEOID, -3, -1)) %>%
+  pull(county_fips)
+
+
+FL_race_tract <- get_acs(
+    geography = "tract",
+    variables = race_vars,
+    state = my_state,
+    county = selected_fips,
+    year = 2022,
+    output = "wide"
+  ) %>%
+  mutate(
+    white_share = round((whiteE / totalE) * 100, 2),
+    black_african_share = round((black_africanE / totalE) * 100, 2),
+    hispanic_latino_share = round((hispanic_latinoE / totalE) * 100, 2)
+  )
+
+
+# Add readable tract and county name columns using str_extract() or similar
+FL_race_tract <- FL_race_tract %>%
+  mutate(
+    county_name = str_extract(NAME, "[^;]+County") %>%
+      str_remove("\\s+County$"),
+    tract_name = str_extract(NAME, "Census Tract\\s*[^;]+") %>%
+      str_remove("^Census Tract\\s*")
+  )
+FL_race_tract <- FL_race_tract %>%
+  select(
+    county_name, tract_name,
+    whiteE, white_share,whiteM,
+    black_africanE, black_african_share, black_africanM,
+    hispanic_latinoE, hispanic_latino_share, hispanic_latinoM,
+    totalE
+  )
+
+```
+
+## 3.3 Demographic Analysis
+
+**Your Task:** Analyze the demographic patterns in your selected areas.
+
+```{r demographic-analysis}
+# Find the tract with the highest percentage of Hispanic/Latino residents
+# Hint: use arrange() and slice() to get the top tract
+top_hispanic_tract <- FL_race_tract %>%
+  filter(!is.na(hispanic_latino_share)) %>%
+  arrange(desc(hispanic_latino_share)) %>%
+  slice(1)
+
+kable(
+  top_hispanic_tract,
+  caption = "Tract with the Highest Percentage of Hispanic/Latino Residents"
+)
+
+# Calculate average demographics by county using group_by() and summarize()
+# Show: number of tracts, average percentage for each racial/ethnic group
+county_avg_demo <- FL_race_tract %>%
+  group_by(county_name) %>%
+  summarize(
+    n_tracts = n(),
+    avg_white_share = round(mean(white_share, na.rm = TRUE), 2),
+    avg_black_african_share = round(mean(black_african_share, na.rm = TRUE), 2),
+    avg_hispanic_latino_share = round(mean(hispanic_latino_share, na.rm = TRUE), 2),
+    .groups = "drop"
+  )
+
+
+# Create a nicely formatted table of your results using kable()
+kable(
+  county_avg_demo,
+  col.names = c(
+    "County",
+    "Number of Tracts",
+    "Avg White (%)",
+    "Avg Black/African American (%)",
+    "Avg Hispanic/Latino (%)"
+  ),
+  caption = "Average Tract Demographics by County"
+)
+
+```
+
+# Part 4: Comprehensive Data Quality Evaluation
+
+## 4.1 MOE Analysis for Demographic Variables
+
+**Your Task:** Examine margins of error for demographic variables to see if some communities have less reliable data.
+
+**Requirements:**
+- Calculate MOE percentages for each demographic variable
+- Flag tracts where any demographic variable has MOE > 15%
+- Create summary statistics
+
+```{r demographic-moe}
+# Calculate MOE percentages for white, Black, and Hispanic variables
+# Hint: use the same formula as before (margin/estimate * 100)
+# Create a flag for tracts with high MOE on any demographic variable
+# Use logical operators (| for OR) in an ifelse() statement
+tract_reliability <- FL_race_tract %>%
+  mutate(
+    white_moe_pct = round((whiteM / whiteE) * 100, 2),
+    black_moe_pct = round((black_africanM / black_africanE) * 100, 2),
+    hispanic_moe_pct = round((hispanic_latinoM / hispanic_latinoE) * 100, 2)
+  ) %>%
+  mutate(
+    has_data_quality_issue = ifelse(
+      white_moe_pct > 15 | black_moe_pct > 15 | hispanic_moe_pct > 15,
+      TRUE,
+      FALSE
+    )
+  )
+
+
+# Create summary statistics showing how many tracts have data quality issues
+tract_quality_summary <- tract_reliability %>%
+  summarise(
+    n_tracts = n(),
+    n_issue = sum(has_data_quality_issue, na.rm = TRUE),
+    pct_issue = round(n_issue / n_tracts * 100, 2)
+  )
+
+tract_quality_by_county <- tract_reliability %>%
+  group_by(county_name) %>%
+  summarise(
+    n_tracts = n(),
+    n_issue = sum(has_data_quality_issue, na.rm = TRUE),
+    pct_issue = round(n_issue / n_tracts * 100, 2),
+    .groups = "drop"
+  )
+
+kable(
+  tract_quality_by_county,
+  col.names = c("County", "Number of Tracts", "Tracts with low confidence", "Percent with Issues (%)"),
+  caption = "Tract Data Quality Issues by County (ACS 2022 5-year)"
+)
+```
+
+## 4.2 Pattern Analysis
+
+**Your Task:** Investigate whether data quality problems are randomly distributed or concentrated in certain types of communities.
+
+```{r pattern-analysis}
+# Group tracts by whether they have high MOE issues
+# Calculate average characteristics for each group:
+# - population size, demographic percentages
+tract_group_summary <- tract_reliability %>%
+  group_by(has_data_quality_issue) %>%
+  summarise(
+    n_tracts = n(),
+    avg_total_pop = round(mean(totalE, na.rm = TRUE), 2),
+    avg_white_share = round(mean(white_share, na.rm = TRUE), 2),
+    avg_black_share = round(mean(black_african_share, na.rm = TRUE), 2),
+    avg_hispanic_share = round(mean(hispanic_latino_share, na.rm = TRUE), 2),
+    .groups = "drop"
+  )
+
+kable(
+  tract_group_summary,
+  col.names = c(
+    "High MOE Issue?",
+    "Number of Tracts",
+    "Avg Total Population",
+    "Avg White (%)",
+    "Avg Black/African American (%)",
+    "Avg Hispanic/Latino (%)"
+  ),
+  caption = "Average Tract Characteristics by Data Quality Issue Flag (ACS 2022 5-year)"
+)
+# Use group_by() and summarize() to create this comparison
+# Create a professional table showing the patterns
+```
+
+**Pattern Analysis:** All tracts in this study are flagged as low confidence, which suggests the data quality problems are widespread rather than isolated. A likely reason is that several demographic groups have very small counts in many tracts, so small sampling differences produce large MOE percentages for the race share estimates. In practice, this means tract level comparisons and algorithmic decisions based on these demographic percentages in FL could be unstable and should be treated as indicative patterns, not precise inputs.
+
+
+# Part 5: Policy Recommendations
+
+## 5.1 Analysis Integration and Professional Summary
+
+**Your Task:** Write an executive summary that integrates findings from all four analyses.
+
+**Executive Summary Requirements:**
+1. **Overall Pattern Identification**: What are the systematic patterns across all your analyses?
+2. **Equity Assessment**: Which communities face the greatest risk of algorithmic bias based on your findings?
+3. **Root Cause Analysis**: What underlying factors drive both data quality issues and bias risk?
+4. **Strategic Recommendations**: What should the Department implement to address these systematic issues?
+
+**Executive Summary:**
+
+Across the county analysis, median household income uncertainty is not uniform. Only a small set of counties have very high MOE percentages, which makes threshold based decisions unstable at the margin. At the tract level, demographic share estimates show consistently low confidence in Florida, meaning the problem intensifies as study scale gets smaller and as the measure depends on subgroup counts. Taken together, uncertainty concentrates by scale and by variable, and it can overwhelm simple comparisons even when the estimates look reasonable.
+
+Communities most at risk of algorithmic bias are those located in counties with the highest income MOE and in tracts where demographic shares have high MOE, because an algorithm can easily misclassify them into the wrong tier for eligibility, enforcement, or resource allocation. This risk is especially acute for tracts where Hispanic, Black, or other subgroup counts are small, since the demographic share inputs become noisy and can flip across thresholds. The result is not random error, it is predictable under service or over targeting in the same places where the inputs are least reliable.
+
+The core driver is statistical instability from small denominators and uneven distributions, which makes subgroup share estimates highly sensitive to sampling variation. Counties and tracts with more uneven income distributions or more segmented demographic composition can also show larger uncertainty because the median and subgroup shares shift more across samples. Nonresponse and measurement error compound this at fine geographies, and the ACS design means tract level estimates can carry high relative MOE even when county level aggregates look acceptable.
+
+The Department should require uncertainty aware use of ACS by hard coding MOE gates, do not allow automated decisions when MOE exceeds a threshold, and default to manual review or additional data collection for those communities. For operational models, use uncertainty weighted features, avoid sharp cutoffs on noisy variables, and prefer larger geographies or pooled multi year estimates when equity impacts are high. Pair ACS with administrative data where possible, run routine fairness and stability audits that track error rates by county and tract, and publish clear monitoring rules so outcomes get corrected when data quality is weak rather than letting the algorithm quietly fail the same communities repeatedly.
+
+## 6.3 Specific Recommendations
+
+**Your Task:** Create a decision framework for algorithm implementation.
+
+```{r recommendations-data}
+# Create a summary table using your county reliability data
+# Include: county name, median income, MOE percentage, reliability category
+recommendations_data <- county_reliability %>%
+  select(county_name, median_hh_incomeE, moe_pct, reliability_category) %>%
+# Add a new column with algorithm recommendations using case_when():
+# - High Confidence: "Safe for algorithmic decisions"
+# - Moderate Confidence: "Use with caution - monitor outcomes"  
+# - Low Confidence: "Requires manual review or additional data"
+  mutate(
+    algorithm_recommendation = case_when(
+      reliability_category == "High Confidence" ~ "Safe for algorithmic decisions",
+      reliability_category == "Moderate Confidence" ~ "Use with caution - monitor outcomes",
+      TRUE ~ "Requires manual review or additional data"
+    )
+  )
+
+
+# Format as a professional table with kable()
+kable(
+  recommendations_data,
+  col.names = c("County", "Median HH Income (Estimate)", "MOE (%)", "Reliability Category", "Algorithm Recommendation"),
+  caption = "Algorithm Readiness Recommendations Based on County Income Data Reliability (ACS 2022 5-year)"
+)
+```
+
+**Key Recommendations:** This means
+
+**Your Task:** Use your analysis results to provide specific guidance to the department.
+
+1. **Counties suitable for immediate algorithmic implementation:** Counties with High Confidence, MOE below 5 percent. These include Alachua, Bay, Brevard, Broward, Charlotte, Citrus, Clay, Collier, Duval, Escambia, Flagler, Hernando, Highlands, Hillsborough, Indian River, Lake, Lee, Leon, Manatee, Marion, Martin, Miami-Dade, Monroe, Nassau, Okaloosa, Orange, Osceola, Palm Beach, Pasco, Pinellas, Polk, St. Johns, St. Lucie, Santa Rosa, Sarasota, Seminole, Volusia. They are appropriate because the income estimate uncertainty is low enough that ranking, tiering, and threshold rules will be stable for most cases.
+
+2. **Counties requiring additional oversight:** Counties with Moderate Confidence, MOE 5 to 10 percent, with monitoring. These include Columbia, DeSoto, Franklin, Gadsden, Gilchrist, Gulf, Hendry, Holmes, Jackson, Levy, Okeechobee, Putnam, Sumter, Wakulla, Walton, Washington. Oversight should focus on cutoff sensitivity: add a review buffer around eligibility thresholds, track how often counties move across tiers when you incorporate MOE, and audit outcomes routinely to catch systematic under or over allocation.
+
+3. **Counties needing alternative approaches:** Avoid fully automated decisions for counties with low Confidence counties, MOE above 10 percent. These include Baker, Bradford, Calhoun, Dixie, Glades, Hamilton, Hardee, Jefferson, Lafayette, Liberty, Madison, Suwannee, Taylor, Union. Use manual review for threshold based decisions, pool more years or use larger geographies to stabilize estimates, and supplement with administrative data or targeted local data collection if these counties are high priority for services.
+
+## Questions for Further Investigation
+
+1.Do Low Confidence counties share measurable traits such as smaller tax base, higher rurality, or more volatile household income distributions, and can those traits predict MOE risk.
+
+2.How consistent are these reliability categories across time windows, for example comparing ACS 2017–2021 vs 2018–2022, and which counties frequently switch categories.
+
+3.When you move from county to tract, which specific demographic shares drive the largest MOE, and do those high MOE tracts cluster within the same counties or in specific community types.
+
+# Technical Notes
+
+**Data Sources:** 
+- U.S. Census Bureau, American Community Survey 2018-2022 5-Year Estimates
+- Retrieved via tidycensus R package on [date]
+
+**Reproducibility:** 
+- All analysis conducted in R version [your version]
+- Census API key required for replication
+- Complete code and documentation available at: [your portfolio URL]
+
+**Methodology Notes:**
+[Describe any decisions you made about data processing, county selection, or analytical choices that might affect reproducibility]
+
+**Limitations:**
+[Note any limitations in your analysis - sample size issues, geographic scope, temporal factors, etc.]
+
+---
+
+## Submission Checklist
+
+Before submitting your portfolio link on Canvas:
+
+- [ ] All code chunks run without errors
+- [ ] All "[Fill this in]" prompts have been completed
+- [ ] Tables are properly formatted and readable
+- [ ] Executive summary addresses all four required components
+- [ ] Portfolio navigation includes this assignment
+- [ ] Census API key is properly set 
+- [ ] Document renders correctly to HTML
+
+**Remember:** Submit your portfolio URL on Canvas, not the file itself. Your assignment should be accessible at `your-portfolio-url/labs/lab_1/your_file_name.html`

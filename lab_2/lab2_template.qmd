@@ -1,0 +1,897 @@
+---
+title: "Lab 2: Spatial Analysis and Visualization"
+subtitle: "Healthcare Access and Equity in Pennsylvania"
+author: "Daisy Yuan"
+date: today
+format: 
+  html:
+    code-fold: false
+    toc: true
+    toc-location: left
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+## Assignment Overview
+
+**Learning Objectives:**
+- Apply spatial operations to answer policy-relevant research questions
+- Integrate census demographic data with spatial analysis
+- Create publication-quality visualizations and maps
+- Work with spatial data from multiple sources
+- Communicate findings effectively for policy audiences
+
+---
+
+## Part 1: Healthcare Access for Vulnerable Populations
+
+### Research Question
+
+**Which Pennsylvania counties have the highest proportion of vulnerable populations (elderly + low-income) living far from hospitals?**
+
+Your analysis should identify counties that should be priorities for healthcare investment and policy intervention.
+
+### Required Analysis Steps
+
+Complete the following analysis, documenting each step with code and brief explanations:
+
+#### Step 1: Data Collection (5 points)
+
+Load the required spatial data:
+- Pennsylvania county boundaries
+- Pennsylvania hospitals (from lecture data)
+- Pennsylvania census tracts
+
+**Your Task:**
+```{r}
+
+#| echo: false
+# Load required packages
+library(sf)
+library(tidyverse)
+library(tigris)
+library(tidycensus)
+library(scales)
+library(patchwork)
+library(here)
+
+census_api_key(Sys.getenv("CENSUS_API_KEY"))
+
+# Load spatial data
+pa_counties <- st_read(here("data/Pennsylvania_County_Boundaries.shp"))
+hospitals <- st_read(here("data/hospitals.geojson"))
+census_tracts <- tracts(state = "PA", cb = TRUE)
+
+# Standardize CRS
+sf::st_crs(pa_counties)
+hospitals <- st_transform(hospitals, st_crs(pa_counties))
+census_tracts <- st_transform(census_tracts, st_crs(pa_counties))
+
+```
+
+**Questions to answer:**
+- How many hospitals are in your dataset?
+There are 223 hospitals in my dataset.
+
+- How many census tracts?
+There are 3445 census tracts in my dataset.
+
+- What coordinate reference system is each dataset in?
+All of them is now in WGS 1984
+
+---
+
+#### Step 2: Get Demographic Data 
+
+Use `tidycensus` to download tract-level demographic data for Pennsylvania.
+
+**Required variables:**
+- Total population
+- Median household income
+- Population 65 years and over (you may need to sum multiple age categories)
+
+**Your Task:**
+```{r}
+#| echo: false
+pa_tract <- get_acs(
+  geography = "tract",
+  state = "PA",
+  year = 2022,
+  survey = "acs5",
+  geometry = TRUE,
+  variables = c(
+    total_pop = "B01003_001",
+    med_hh_inc = "B19013_001",
+    m_65_66 = "B01001_020",
+    m_67_69 = "B01001_021",
+    m_70_74 = "B01001_022",
+    m_75_79 = "B01001_023",
+    m_80_84 = "B01001_024",
+    m_85p   = "B01001_025",
+    f_65_66 = "B01001_044",
+    f_67_69 = "B01001_045",
+    f_70_74 = "B01001_046",
+    f_75_79 = "B01001_047",
+    f_80_84 = "B01001_048",
+    f_85p   = "B01001_049"
+  ),
+  output = "wide"
+) %>%
+  transmute(
+    GEOID,
+    NAME,
+    total_pop = total_popE,
+    med_hh_inc = med_hh_incE,
+    pop_65_plus =
+      m_65_66E + m_67_69E + m_70_74E + m_75_79E + m_80_84E + m_85pE +
+      f_65_66E + f_67_69E + f_70_74E + f_75_79E + f_80_84E + f_85pE,
+    geometry
+  )
+
+pa_tract <- st_transform(pa_tract, st_crs(pa_counties))
+
+#for Questions to answer
+sum(is.na(pa_tract$med_hh_inc))
+median(pa_tract$med_hh_inc, na.rm = TRUE)
+```
+
+**Questions to answer:**
+- What year of ACS data are you using?
+2022 5-year ACS data
+- How many tracts have missing income data?
+62
+- What is the median income across all PA census tracts?
+70188
+---
+
+#### Step 3: Define Vulnerable Populations 
+
+Identify census tracts with vulnerable populations based on TWO criteria:
+1. Low median household income (choose an appropriate threshold)
+2. Significant elderly population (choose an appropriate threshold)
+
+**Your Task:**
+```{r}
+#| echo: false
+  # Choose threshold
+  pa_tract <- pa_tract %>%
+    mutate(elderly_share = pop_65_plus / total_pop)
+  inc_cut = quantile(pa_tract$med_hh_inc, 0.25, na.rm = TRUE)
+  eld_cut = quantile(pa_tract$elderly_share, 0.75, na.rm = TRUE)
+  
+  # Filter for vulnerable tracts based on your criteria
+  vulnerable_tracts <- pa_tract %>%
+    filter(
+      !is.na(med_hh_inc),
+      !is.na(elderly_share),
+      med_hh_inc <= inc_cut,
+      elderly_share >= eld_cut
+    )
+
+```
+
+**Questions to answer:**
+- What income threshold did you choose and why?
+I chose the 25th percentile of median household income across PA tracts — meaning that tracts with income in the bottom quarter of the state are flagged
+
+- What elderly population threshold did you choose and why?
+I chose the 75th percentile of elderly share across PA tracts — meaning that tracts where the proportion of 65+ residents falls in the top quarter of the state are flagged.
+
+- How many tracts meet your vulnerability criteria?
+165 out of 3,383 valid PA census tracts meet the vulnerability criteria.
+
+- What percentage of PA census tracts are considered vulnerable by your definition?
+Approximately 4.9% of valid PA census tracts are considered vulnerable by this definition.
+
+---
+
+#### Step 4: Calculate Distance to Hospitals 
+
+For each vulnerable tract, calculate the distance to the nearest hospital.
+
+**Your Task:**
+```{r}
+#| echo: false
+# Transform to appropriate projected CRS
+hospitals <- st_transform(hospitals, 2272)
+vulnerable_tracts <- st_transform(vulnerable_tracts, 2272)
+
+# Calculate distance from each tract centroid to nearest hospital
+vulnerable_centroids <- st_centroid(vulnerable_tracts)
+dist_matrix <- st_distance(vulnerable_centroids, hospitals)
+vulnerable_tracts$nearest_hosp_dist <- apply(dist_matrix, 1, min) / 5280
+
+#for Questions to answer
+mean(vulnerable_tracts$nearest_hosp_dist, na.rm = TRUE)
+max(vulnerable_tracts$nearest_hosp_dist, na.rm = TRUE)
+sum(vulnerable_tracts$nearest_hosp_dist > 15, na.rm = TRUE)
+
+```
+
+**Requirements:**
+- Use an appropriate projected coordinate system for Pennsylvania
+- Calculate distances in miles
+- Explain why you chose your projection
+
+**Questions to answer:**
+- What is the average distance to the nearest hospital for vulnerable tracts?
+On average, vulnerable tracts are 4.75 miles from the nearest hospital.
+
+- What is the maximum distance?
+The maximum distance to the nearest hospital among vulnerable tracts is 19.16 miles.
+
+- How many vulnerable tracts are more than 15 miles from the nearest hospital?
+NINE vulnerable tracts are more than 15 miles from the nearest hospital.
+
+---
+
+#### Step 5: Identify Underserved Areas 
+
+Define "underserved" as vulnerable tracts that are more than 15 miles from the nearest hospital.
+
+**Your Task:**
+```{r}
+#| echo: false
+# Create underserved variable
+vulnerable_tracts <- vulnerable_tracts %>%
+  mutate(underserved = nearest_hosp_dist > 15)
+
+#for Questions to answer
+#| eval: false
+sum(vulnerable_tracts$underserved, na.rm = TRUE)
+mean(vulnerable_tracts$underserved, na.rm = TRUE) * 100
+```
+
+**Questions to answer:**
+- How many tracts are underserved?
+Nine.
+
+- What percentage of vulnerable tracts are underserved?
+Approximately 5.5% vulnerable tracts are defined as underserved.
+
+- Does this surprise you? Why or why not?
+This is not entirely surprising. Pennsylvania has a relatively dense hospital network, particularly in urban areas like Philadelphia and Pittsburgh, which keeps most tracts within reasonable distance. At 5.5%, the underserved share is reasonably small — but the 9 tracts that do exceed 15 miles are concerning, as low-income elderly residents in these areas are least likely to have reliable transportation to bridge that gap.
+
+---
+
+#### Step 6: Aggregate to County Level
+
+Use spatial joins and aggregation to calculate county-level statistics about vulnerable populations and hospital access.
+
+**Your Task:**
+```{r}
+# Spatial join tracts to counties
+vulnerable_tracts <- st_transform(vulnerable_tracts, st_crs(pa_counties))
+vulnerable_with_county <- vulnerable_tracts %>%
+  st_join(pa_counties %>% select(COUNTY_NAM))
+
+# Aggregate statistics by county
+county_stats <- vulnerable_with_county %>%
+  st_drop_geometry() %>%
+  group_by(COUNTY_NAM) %>%
+  summarise(
+    n_vulnerable = n(),
+    n_underserved = sum(underserved, na.rm = TRUE),
+    pct_underserved = (n_underserved / n_vulnerable) * 100,
+    avg_dist = mean(nearest_hosp_dist, na.rm = TRUE),
+    total_vulnerable_pop = sum(pop_65_plus, na.rm = TRUE)
+  ) %>%
+  arrange(desc(n_vulnerable))
+
+# Top 5 counties by percentage underserved
+county_stats %>%
+  arrange(desc(pct_underserved)) %>%
+  head(5)
+# Counties with most vulnerable people far from hospitals
+county_stats %>%
+  filter(n_underserved > 0) %>%
+  arrange(desc(total_vulnerable_pop)) %>%
+  head(5)
+```
+
+**Required county-level statistics:**
+- Number of vulnerable tracts
+- Number of underserved tracts  
+- Percentage of vulnerable tracts that are underserved
+- Average distance to nearest hospital for vulnerable tracts
+- Total vulnerable population
+
+**Questions to answer:**
+- Which 5 counties have the highest percentage of underserved vulnerable tracts?
+Perry, Bradford, Columbia, Juniata, and Monroe all have 100% of their vulnerable tracts classified as underserved, with average distances ranging from 15.9 to 17.7 miles from the nearest hospital.
+
+- Which counties have the most vulnerable people living far from hospitals?
+Luzerne leads with 6,125 vulnerable elderly residents and 1 underserved tract, followed by Warren (5,963), Crawford (4,683), Clearfield (4,368), and Northumberland (3,395).
+
+- Are there any patterns in where underserved counties are located?
+The underserved counties are predominantly rural, located in central and northern Pennsylvania (Perry, Juniata, Columbia, Bradford, Clearfield, Warren, Crawford). This aligns with the broader pattern of rural healthcare deserts, where low population density makes hospital infrastructure harder to sustain. 
+
+---
+
+#### Step 7: Create Summary Table 
+
+Create a professional table showing the top 10 priority counties for healthcare investment.
+
+**Your Task:**
+```{r}
+# Create and format priority counties table
+library(knitr)
+library(kableExtra)
+
+county_stats %>%
+  arrange(desc(pct_underserved), desc(total_vulnerable_pop)) %>%
+  head(10) %>%
+  mutate(
+    avg_dist = round(avg_dist, 2),
+    pct_underserved = round(pct_underserved, 1),
+    total_vulnerable_pop = comma(total_vulnerable_pop)
+  ) %>%
+  rename(
+    "County" = COUNTY_NAM,
+    "Vulnerable Tracts" = n_vulnerable,
+    "Underserved Tracts" = n_underserved,
+    "% Underserved" = pct_underserved,
+    "Avg. Distance to Hospital (miles)" = avg_dist,
+    "Total Vulnerable Population" = total_vulnerable_pop
+  ) %>%
+  kable(
+    caption = "Top 10 Priority Counties for Healthcare Investment in Pennsylvania: Counties with the highest share of vulnerable tracts lacking adequate hospital access",
+    align = c("l", "c", "c", "c", "c", "c")
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed"),
+    full_width = FALSE
+  )
+
+
+```
+
+**Requirements:**
+- Use `knitr::kable()` or similar for formatting
+- Include descriptive column names
+- Format numbers appropriately (commas for population, percentages, etc.)
+- Add an informative caption
+- Sort by priority (you decide the metric)
+
+---
+
+## Part 2: Comprehensive Visualization 
+
+Using the skills from Week 3 (Data Visualization), create publication-quality maps and charts.
+
+### Map 1: County-Level Choropleth 
+
+Create a choropleth map showing healthcare access challenges at the county level.
+
+**Your Task:**
+```{r}
+# Create county-level access map
+hospitals <- st_transform(hospitals, st_crs(pa_counties))
+
+# Join county_stats to pa_counties spatial data
+county_map <- pa_counties %>%
+  left_join(county_stats, by = "COUNTY_NAM")
+
+# Create county-level access map
+ggplot() +
+  geom_sf(data = county_map,
+          aes(fill = pct_underserved),
+          color = "white", linewidth = 0.3) +
+  geom_sf(data = hospitals,
+          color = "red", size = 0.8, alpha = 0.6) +
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    na.value = "gray90",
+    name = "% Underserved\nVulnerable Tracts",
+    labels = scales::label_percent(scale = 1)
+  ) +
+  labs(
+    title = "County-Level Hospital Access for Vulnerable Populations in Pennsylvania",
+    subtitle = "Share of vulnerable tracts more than 15 miles from the nearest hospital",
+    caption = "Source: U.S. Census Bureau ACS 2022, PA County Boundaries\nVulnerable tracts defined as low-income (bottom 25%) with high elderly share (top 25%)"
+  ) +
+  theme_void()
+
+```
+
+**Requirements:**
+- Fill counties by percentage of vulnerable tracts that are underserved
+- Include hospital locations as points
+- Use an appropriate color scheme
+- Include clear title, subtitle, and caption
+- Use `theme_void()` or similar clean theme
+- Add a legend with formatted labels
+
+---
+
+### Map 2: Detailed Vulnerability Map 
+
+Create a map highlighting underserved vulnerable tracts.
+
+**Your Task:**
+```{r}
+# Create detailed tract-level map
+ggplot() +
+  geom_sf(data = pa_counties, 
+          fill = "gray95", color = "gray60", linewidth = 0.3) +
+  geom_sf(data = vulnerable_tracts %>% filter(!underserved),
+          fill = "lightyellow", color = NA, alpha = 0.7) +
+  geom_sf(data = vulnerable_tracts %>% filter(underserved),
+          fill = "red", color = NA, alpha = 0.9) +
+  geom_sf(data = hospitals,
+          color = "blue", size = 0.8, alpha = 0.6) +
+  labs(
+    title = "Underserved Vulnerable Tracts in Pennsylvania",
+    subtitle = "Red tracts are low-income, elderly, and more than 15 miles from the nearest hospital",
+    caption = "Source: U.S. Census Bureau ACS 2022\nBlue points = Hospitals"
+  ) +
+  theme_void()
+
+```
+
+**Requirements:**
+- Show underserved vulnerable tracts in a contrasting color
+- Include county boundaries for context
+- Show hospital locations
+- Use appropriate visual hierarchy (what should stand out?)
+- Include informative title and subtitle
+
+---
+
+### Chart: Distribution Analysis
+
+Create a visualization showing the distribution of distances to hospitals for vulnerable populations.
+
+**Your Task:**
+```{r}
+# Create distribution visualization
+
+# Plot 1: Histogram weighted by elderly population
+p1 <- ggplot(vulnerable_tracts, aes(x = nearest_hosp_dist, weight = pop_65_plus)) +
+  geom_histogram(aes(fill = after_stat(x) > 15), bins = 30, alpha = 0.8) +
+  scale_fill_manual(
+    values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    labels = c("FALSE" = "Served", "TRUE" = "Underserved"),
+    name = ""
+  ) +
+  labs(
+    title = "Elderly Population by Distance to Nearest Hospital",
+    subtitle = "Among vulnerable tracts in Pennsylvania",
+    x = "Distance to Nearest Hospital (miles)",
+    y = "Total Elderly Population (65+)",
+    caption = "Red bars = beyond 15-mile underserved threshold"
+  ) +
+  theme_minimal()
+
+# Plot 2: Scatter plot of distance vs elderly population
+p2 <- ggplot(vulnerable_tracts, aes(x = nearest_hosp_dist, y = pop_65_plus, color = underserved)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(
+    values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    labels = c("FALSE" = "Served", "TRUE" = "Underserved"),
+    name = ""
+  ) +
+  labs(
+    title = "Elderly Population vs. Distance to Nearest Hospital by Tract",
+    subtitle = "Among vulnerable tracts in Pennsylvania",
+    x = "Distance to Nearest Hospital (miles)",
+    y = "Total Elderly Population (65+)",
+    caption = "Source: U.S. Census Bureau ACS 2022"
+  ) +
+  theme_minimal()
+
+# Comparison
+p1 / p2
+
+#The histogram shows the total elderly population living in the census tracts at certain distance range from the nearest hospital. 
+#The majority of bars are concentrated within 5 miles and decline sharply beyond that
+#The dashline marks the threshold of underserved population.
+
+```
+
+**Suggested chart types:**
+- Histogram or density plot of distances
+- Box plot comparing distances across regions
+- Bar chart of underserved tracts by county
+- Scatter plot of distance vs. vulnerable population size
+
+**Requirements:**
+- Clear axes labels with units
+- Appropriate title
+- Professional formatting
+- Brief interpretation (1-2 sentences as a caption or in text)
+
+---
+
+## Part 3: Bring Your Own Data Analysis 
+
+Choose your own additional spatial dataset and conduct a supplementary analysis.
+
+### Challenge Options
+
+Choose ONE of the following challenge exercises, or propose your own research question using OpenDataPhilly data (https://opendataphilly.org/datasets/). 
+
+---
+**School Safety Zones**
+- **Data:** Schools, Crime Incidents, Collision
+- **Question:** "Are school zones safe for commuting, or are they danger hotspots?"
+- **Operations:** Buffer schools (1000ft safety zone), spatial join with crime incidents and collision count
+- **Policy relevance:** Safe Routes to School programs, crossing guard placement
+
+
+### Your Analysis
+
+**Your Task:**
+
+1. **Find and load additional data**
+   - Document your data source
+   - Check and standardize the CRS
+   - Provide basic summary statistics
+
+```{r}
+# Load additional dataset
+schools <- st_read(here("data/Schools.shp"))
+
+crime <- bind_rows(
+  st_read(here("data/crime2020/incidents_part1_part2.shp")),
+  st_read(here("data/crime2021/incidents_part1_part2.shp")),
+  st_read(here("data/crime2022/incidents_part1_part2.shp")),
+  st_read(here("data/crime2023/incidents_part1_part2.shp")),
+  st_read(here("data/crime2024/incidents_part1_part2.shp"))
+)
+
+crime <- crime %>%
+  filter(text_gener %in% c(
+    "Homicide - Criminal",
+    "Aggravated Assault Firearm",
+    "Aggravated Assault No Firearm",
+    "Robbery No Firearm",
+    "Robbery Firearm",
+    "Rape",
+    "Other Assaults",
+    "Weapon Violations",
+    "Offenses Against Family and Children",
+    "Narcotic / Drug Law Violations"
+  ))
+
+collision <- st_read(here("data/collision_crash_2020_2024.geojson"))
+
+
+schools <- st_transform(schools, st_crs(pa_counties))
+crime <- st_transform(crime, st_crs(pa_counties))
+collision <- st_transform(collision, st_crs(pa_counties))
+
+
+```
+
+**Questions to answer:**
+- What dataset did you choose and why?
+I chose three datasets from OpenDataPhilly: Philadelphia crime incidents (2020–2024 aggregate), traffic collision data (2020–2024), and school parcels. Crime and collision data were chosen because both directly affect student safety around schools. Violent crime threatens personal safety while traffic collisions are a major concern for students walking or biking to school.
+
+- What is the data source and date?
+All datasets are from OpenDataPhilly, maintained by the City of Philadelphia. Crime and collision data span 2020–2024 and school parcels reflect current school locations.
+
+- How many features does it contain?
+After filtering for relevant crime categories, the crime dataset contains 234,858 incidents across five years. The collision dataset contains 36,303 records over the same period.
+
+- What CRS is it in? Did you need to transform it?
+All datasets are in EPSG 3857 (WGS 84 / Pseudo-Mercator), the same CRS as "pa_counties". No additional transformation was needed since they already matched.
+---
+
+2. **Pose a research question**
+
+Do high-violation tracts have more dangerous school safety zone?
+
+**Examples:**
+- "Do vulnerable tracts have adequate public transit access to hospitals?"
+- "Are EMS stations appropriately located near vulnerable populations?"
+- "Do areas with low vehicle access have worse hospital access?"
+
+---
+
+3. **Conduct spatial analysis**
+
+Use at least TWO spatial operations to answer your research question.
+
+**Required operations (choose 2+):**
+- Buffers
+- Spatial joins
+- Spatial filtering with predicates
+- Distance calculations
+- Intersections or unions
+- Point-in-polygon aggregation
+
+**Your Task:**
+```{r}
+## buffer school safety zone and calculate number of crime and collision for each school
+# 1000ft = 304.8 meters in EPSG 3857
+safety_zone <- schools %>%
+  st_buffer(dist = 304.8)
+
+# Spatial join
+crime_in_buffer <- safety_zone %>%
+  st_join(crime) %>%
+  st_drop_geometry() %>%
+  group_by(objectid.x) %>%
+  summarise(crime_count = n()) %>%
+  rename(objectid = objectid.x)
+
+collision_in_buffer <- safety_zone %>%
+  st_join(collision) %>%
+  st_drop_geometry() %>%
+  group_by(objectid.x) %>%
+  summarise(collision_count = n()) %>%
+  rename(objectid = objectid.x)
+
+# Join counts
+safety_zone <- schools %>%
+  st_buffer(dist = 304.8) %>%
+  left_join(crime_in_buffer, by = "objectid") %>%
+  left_join(collision_in_buffer, by = "objectid") %>%
+  mutate(
+    crime_count = replace_na(crime_count, 0),
+    collision_count = replace_na(collision_count, 0),
+    danger_score = crime_count + collision_count
+  )
+
+##identify the top 5 dangerous school parcels by crime/collision/crime + collision (= danger)/
+##top 20% crime and top 20% collision
+
+# Flag high-violation schools (top 20% in BOTH crime and collision)
+crime_cut <- quantile(safety_zone$crime_count, 0.80, na.rm = TRUE)
+collision_cut <- quantile(safety_zone$collision_count, 0.80, na.rm = TRUE)
+
+safety_zone <- safety_zone %>%
+  mutate(high_violation = crime_count >= crime_cut & collision_count >= collision_cut)
+sum(safety_zone$high_violation)
+
+ggplot() +
+  geom_sf(data = schools, fill = "gray90", color = "gray60", linewidth = 0.3) +
+  geom_sf(data = safety_zone %>% filter(high_violation),
+          fill = "red", alpha = 0.6, color = "darkred", linewidth = 0.3) +
+  labs(
+    title = "High-Violation School Safety Zones in Philadelphia",
+    subtitle = "Schools in top 20% of both crime and collision counts",
+    caption = "Source: OpenDataPhilly 2020-2024"
+  ) +
+  theme_void()
+
+# top 5 dangerous school parcels
+top5_crime <- safety_zone %>%
+  st_drop_geometry() %>%
+  arrange(desc(crime_count)) %>%
+  head(5) %>%
+  select(objectid, school_nam, crime_count, collision_count, danger_score) %>%
+  kable(caption = "Top 5 Schools by Crime Count",
+        col.names = c("ID", "School Name", "Crime Count", "Collision Count", "Danger Score")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+top5_collision <- safety_zone %>%
+  st_drop_geometry() %>%
+  arrange(desc(collision_count)) %>%
+  head(5) %>%
+  select(objectid, school_nam, crime_count, collision_count, danger_score) %>%
+  kable(caption = "Top 5 Schools by Collision Count",
+        col.names = c("ID", "School Name", "Crime Count", "Collision Count", "Danger Score")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+top5_danger <- safety_zone %>%
+  st_drop_geometry() %>%
+  arrange(desc(danger_score)) %>%
+  head(5) %>%
+  select(objectid, school_nam, crime_count, collision_count, danger_score) %>%
+  kable(caption = "Top 5 Schools by Combined Danger Score",
+        col.names = c("ID", "School Name", "Crime Count", "Collision Count", "Danger Score")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+top5_crime
+top5_collision
+top5_danger
+
+```
+```{r}
+##calculate the average distance from danger point in a school buffer to the school
+schools <- rename(schools, OBJECTID = objectid)
+
+# Crime distances
+crime_dist_matrix <- st_distance(crime, schools)
+
+crime_dist <- crime %>%
+  mutate(dist_to_school = apply(crime_dist_matrix, 1, min)) %>%
+  st_join(safety_zone %>% select(objectid)) %>%
+  st_drop_geometry() %>%
+  group_by(objectid.y) %>%
+  summarise(avg_crime_dist = mean(dist_to_school, na.rm = TRUE)) %>%
+  rename(objectid = objectid.y)
+
+safety_zone <- safety_zone %>%
+  left_join(crime_dist, by = "objectid")
+
+# Collision distances
+collision_dist_matrix <- st_distance(collision, schools)
+
+collision_dist <- collision %>%
+  mutate(dist_to_school = apply(collision_dist_matrix, 1, min)) %>%
+  st_join(safety_zone %>% select(objectid)) %>%
+  st_drop_geometry() %>%
+  group_by(objectid.y) %>%
+  summarise(avg_collision_dist = mean(dist_to_school, na.rm = TRUE)) %>%
+  rename(objectid = objectid.y)
+
+safety_zone <- safety_zone %>%
+  left_join(collision_dist, by = "objectid")
+
+# Top 5 by average crime distance
+top5_crime_dist <- safety_zone %>%
+  st_drop_geometry() %>%
+  arrange(avg_crime_dist) %>%
+  head(5) %>%
+  select(objectid, school_nam, avg_crime_dist) %>%
+  kable(caption = "Top 5 Schools with Least Average Crime Distance (meters)",
+        col.names = c("ID", "School Name", "Avg Crime Distance (m)")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+# Top 5 by average collision distance
+top5_collision_dist <- safety_zone %>%
+  st_drop_geometry() %>%
+  arrange(avg_collision_dist) %>%
+  head(5) %>%
+  select(objectid, school_nam, avg_collision_dist) %>%
+  kable(caption = "Top 5 Schools by Average Collision Distance (meters)",
+        col.names = c("ID", "School Name", "Avg Collision Distance (m)")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+
+top5_crime_dist
+top5_collision_dist
+
+# Flag schools with least 20% crime distance and least 20% collision distance
+crime_dist_cut <- quantile(safety_zone$avg_crime_dist, 0.20, na.rm = TRUE)
+collision_dist_cut <- quantile(safety_zone$avg_collision_dist, 0.20, na.rm = TRUE)
+
+safety_zone <- safety_zone %>%
+  mutate(high_violation_dist = avg_crime_dist <= crime_dist_cut & avg_collision_dist <= collision_dist_cut)
+cat("Number of high-violation distance schools:", sum(safety_zone$high_violation_dist, na.rm = TRUE), "\n")
+
+##aggregate by census tract and county
+# Step 5: Aggregate by census tract and county
+# First transform census_tracts to match CRS
+pa_tract <- st_transform(pa_tract, st_crs(safety_zone))
+
+# Spatial join safety_zone to census tracts
+safety_zone_tracts <- safety_zone %>%
+  st_join(pa_tract %>% select(GEOID, NAME)) %>%
+  st_drop_geometry() %>%
+  group_by(GEOID, NAME) %>%
+  summarise(
+    n_schools = n(),
+    n_high_violation = sum(high_violation, na.rm = TRUE),
+    n_high_violation_dist = sum(high_violation_dist, na.rm = TRUE),
+    avg_crime_count = mean(crime_count, na.rm = TRUE),
+    avg_collision_count = mean(collision_count, na.rm = TRUE),
+    avg_crime_dist = mean(avg_crime_dist, na.rm = TRUE),
+    avg_collision_dist = mean(avg_collision_dist, na.rm = TRUE)
+  ) %>%
+  mutate(
+    high_violation_rate = n_high_violation / n_schools * 100,
+    high_violation_dist_rate = n_high_violation_dist / n_schools * 100,
+    tract_num = str_extract(NAME, "(?<=Census Tract )\\d+\\.?\\d*")
+  ) %>%
+  arrange(desc(n_high_violation))
+
+
+head(safety_zone_tracts)
+
+```
+
+```{r}
+##visualization
+# Visualization 1: Tract-level choropleth map
+tract_map <- pa_tract %>%
+  left_join(safety_zone_tracts %>% st_drop_geometry(), by = "GEOID") %>%
+  filter(!is.na(high_violation_rate))
+
+ggplot() +
+  geom_sf(data = pa_counties %>% filter(COUNTY_NAM == "PHILADELPHIA"),
+          fill = "gray95", color = "gray60", linewidth = 0.3) +
+  geom_sf(data = tract_map,
+          aes(fill = high_violation_rate),
+          color = "white", linewidth = 0.2) +
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    na.value = "gray90",
+    name = "% High Violation\nSchools",
+    labels = scales::label_percent(scale = 1)
+  ) +
+  labs(
+    title = "High-Violation School Safety Zones by Census Tract",
+    subtitle = "Share of schools in top 20% of both crime and collision counts",
+    caption = "Source: OpenDataPhilly 2020-2024"
+  ) +
+  theme_void()
+
+# Visualization 2: Compare high_violation vs high_violation_dist
+ggplot() +
+  geom_sf(data = pa_counties %>% filter(COUNTY_NAM == "PHILADELPHIA"),
+          fill = "gray95", color = "gray60", linewidth = 0.3) +
+  geom_sf(data = safety_zone,
+          fill = "gray80", color = NA, alpha = 0.5) +
+  geom_sf(data = safety_zone %>% filter(high_violation),
+          fill = "orange", color = NA, alpha = 0.7) +
+  geom_sf(data = safety_zone %>% filter(high_violation_dist),
+          fill = "red", color = NA, alpha = 0.7) +
+  labs(
+    title = "High-Violation School Safety Zones in Philadelphia",
+    subtitle = "Orange = high crime/collision count | Red = close crime/collision violations",
+    caption = "Source: OpenDataPhilly 2020-2024"
+  ) +
+  theme_void()
+
+# Visualization 3: Crime and Collision Distribution Across Philadelphia School Safety Zones
+p3 <- ggplot(safety_zone, aes(x = crime_count, fill = high_violation)) +
+  geom_histogram(bins = 30, alpha = 0.8) +
+  scale_fill_manual(
+    values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    labels = c("FALSE" = "Normal", "TRUE" = "High Violation"),
+    name = ""
+  ) +
+  labs(
+    title = "Distribution of Crime Counts Across School Safety Zones",
+    x = "Crime Count (2020-2024)",
+    y = "Number of Schools",
+    caption = "Red = top 20% in both crime and collision counts"
+  ) +
+  theme_minimal()
+
+# p2: Scatter plot of crime_count vs collision_count colored by high_violation
+p4 <- ggplot(safety_zone, aes(x = crime_count, y = collision_count, color = high_violation)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(
+    values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    labels = c("FALSE" = "Normal", "TRUE" = "High Violation"),
+    name = ""
+  ) +
+  labs(
+    title = "Crime Count vs. Collision Count by School",
+    x = "Crime Count (2020-2024)",
+    y = "Collision Count (2020-2024)",
+    caption = "Source: OpenDataPhilly 2020-2024"
+  ) +
+  theme_minimal()
+
+p3 / p4
+
+```
+
+**Analysis requirements:**
+- Clear code comments explaining each step
+- Appropriate CRS transformations
+- Summary statistics or counts
+- At least one map showing your findings
+- Brief interpretation of results (3-5 sentences)
+
+**Your interpretation:**
+This analysis examined 490 school safety zones across Philadelphia using crime incident and traffic collision data from 2020 to 2024. Of the 490 schools, 52 (10.6%) were classified as high-violation by count — falling in the top 20% of both crime and collision counts — while 46 schools (9.4%) were flagged as high-violation by distance, meaning violations tend to cluster very close to the school itself. The histogram shows that most schools have fewer than 500 crime incidents over the five-year period, with high-violation schools appearing at the higher end of the distribution, confirming that the top 20% threshold effectively separates genuinely dangerous zones from the rest. The scatter plot further reveals a positive relationship between crime count and collision count — schools with more crime also tend to have more collisions — and high-violation schools cluster distinctly in the upper right, indicating that danger tends to be compounded rather than isolated to a single incident type. At the census tract level, dangerous school zones are mostly concentrated in tracts along North Broad Street, Kensington, and West Philadelphia, underscoring the need for targeted Safe Routes to School investments in these specific corridors where students face both high volumes of crime and violations occurring in close proximity to school grounds.
+
+
+## Finally - A few comments about your incorporation of feedback!
+I try to avoid unnecessary code like print() and head(), also hide setup code. 
+
+---
+
+## Submission Requirements
+
+**What to submit:**
+
+1. **Rendered HTML document posted to your course portfolio** with all code, outputs, maps, and text
+   - Use `embed-resources: true` in YAML so it's a single file
+   - All code should run without errors
+   - All maps and charts should display correctly
+2. Submit the correct and working links of your assignment on Canvas
+
+---
+

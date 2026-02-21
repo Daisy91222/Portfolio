@@ -14,6 +14,8 @@ website:
           text: "Lab 0: dplyr Basics"
         - href: lab_1/lab1_template.qmd
           text: "Lab 1: Census Data Quality for Policy Decisions"
+        - href: lab_2/lab2_template.qmd
+          text: "Lab 2: Spatial Analysis and Visualization"
 format:
   html:
     theme: cosmo

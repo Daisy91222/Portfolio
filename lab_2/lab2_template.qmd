@@ -24,7 +24,6 @@ execute:
 - Work with spatial data from multiple sources
 - Communicate findings effectively for policy audiences
 
----
 
 ## Part 1: Healthcare Access for Vulnerable Populations
 
@@ -49,6 +48,9 @@ Load the required spatial data:
 ```{r}
 
 #| echo: false
+#| message: false
+#| results: hide
+
 # Load required packages
 library(sf)
 library(tidyverse)
@@ -63,12 +65,9 @@ census_api_key(Sys.getenv("CENSUS_API_KEY"))
 # Load spatial data
 pa_counties <- st_read(here("data/Pennsylvania_County_Boundaries.shp"))
 hospitals <- st_read(here("data/hospitals.geojson"))
-census_tracts <- tracts(state = "PA", cb = TRUE)
 
 # Standardize CRS
-sf::st_crs(pa_counties)
 hospitals <- st_transform(hospitals, st_crs(pa_counties))
-census_tracts <- st_transform(census_tracts, st_crs(pa_counties))
 
 ```
 
@@ -82,7 +81,7 @@ There are 3445 census tracts in my dataset.
 - What coordinate reference system is each dataset in?
 All of them is now in WGS 1984
 
----
+
 
 #### Step 2: Get Demographic Data 
 
@@ -96,6 +95,8 @@ Use `tidycensus` to download tract-level demographic data for Pennsylvania.
 **Your Task:**
 ```{r}
 #| echo: false
+#| message: false
+#| results: hide
 pa_tract <- get_acs(
   geography = "tract",
   state = "PA",
@@ -145,7 +146,7 @@ median(pa_tract$med_hh_inc, na.rm = TRUE)
 62
 - What is the median income across all PA census tracts?
 70188
----
+
 
 #### Step 3: Define Vulnerable Populations 
 
@@ -186,7 +187,7 @@ I chose the 75th percentile of elderly share across PA tracts — meaning that t
 - What percentage of PA census tracts are considered vulnerable by your definition?
 Approximately 4.9% of valid PA census tracts are considered vulnerable by this definition.
 
----
+
 
 #### Step 4: Calculate Distance to Hospitals 
 
@@ -226,7 +227,7 @@ The maximum distance to the nearest hospital among vulnerable tracts is 19.16 mi
 - How many vulnerable tracts are more than 15 miles from the nearest hospital?
 NINE vulnerable tracts are more than 15 miles from the nearest hospital.
 
----
+
 
 #### Step 5: Identify Underserved Areas 
 
@@ -255,7 +256,7 @@ Approximately 5.5% vulnerable tracts are defined as underserved.
 - Does this surprise you? Why or why not?
 This is not entirely surprising. Pennsylvania has a relatively dense hospital network, particularly in urban areas like Philadelphia and Pittsburgh, which keeps most tracts within reasonable distance. At 5.5%, the underserved share is reasonably small — but the 9 tracts that do exceed 15 miles are concerning, as low-income elderly residents in these areas are least likely to have reliable transportation to bridge that gap.
 
----
+
 
 #### Step 6: Aggregate to County Level
 
@@ -309,7 +310,7 @@ Luzerne leads with 6,125 vulnerable elderly residents and 1 underserved tract, f
 - Are there any patterns in where underserved counties are located?
 The underserved counties are predominantly rural, located in central and northern Pennsylvania (Perry, Juniata, Columbia, Bradford, Clearfield, Warren, Crawford). This aligns with the broader pattern of rural healthcare deserts, where low population density makes hospital infrastructure harder to sustain. 
 
----
+
 
 #### Step 7: Create Summary Table 
 
@@ -356,7 +357,7 @@ county_stats %>%
 - Add an informative caption
 - Sort by priority (you decide the metric)
 
----
+
 
 ## Part 2: Comprehensive Visualization 
 
@@ -406,7 +407,7 @@ ggplot() +
 - Use `theme_void()` or similar clean theme
 - Add a legend with formatted labels
 
----
+
 
 ### Map 2: Detailed Vulnerability Map 
 
@@ -440,7 +441,7 @@ ggplot() +
 - Use appropriate visual hierarchy (what should stand out?)
 - Include informative title and subtitle
 
----
+
 
 ### Chart: Distribution Analysis
 
@@ -505,7 +506,7 @@ p1 / p2
 - Professional formatting
 - Brief interpretation (1-2 sentences as a caption or in text)
 
----
+
 
 ## Part 3: Bring Your Own Data Analysis 
 
@@ -515,7 +516,7 @@ Choose your own additional spatial dataset and conduct a supplementary analysis.
 
 Choose ONE of the following challenge exercises, or propose your own research question using OpenDataPhilly data (https://opendataphilly.org/datasets/). 
 
----
+
 **School Safety Zones**
 - **Data:** Schools, Crime Incidents, Collision
 - **Question:** "Are school zones safe for commuting, or are they danger hotspots?"
@@ -533,6 +534,9 @@ Choose ONE of the following challenge exercises, or propose your own research qu
    - Provide basic summary statistics
 
 ```{r}
+#| echo: false
+#| message: false
+#| results: hide
 # Load additional dataset
 schools <- st_read(here("data/Schools.shp"))
 
@@ -580,18 +584,18 @@ After filtering for relevant crime categories, the crime dataset contains 234,85
 
 - What CRS is it in? Did you need to transform it?
 All datasets are in EPSG 3857 (WGS 84 / Pseudo-Mercator), the same CRS as "pa_counties". No additional transformation was needed since they already matched.
----
+
 
 2. **Pose a research question**
 
-Do high-violation tracts have more dangerous school safety zone?
+Are school safety zones in Philadelphia's high-violation tracts disproportionately exposed to crime incidents and traffic hazards?
 
 **Examples:**
 - "Do vulnerable tracts have adequate public transit access to hospitals?"
 - "Are EMS stations appropriately located near vulnerable populations?"
 - "Do areas with low vehicle access have worse hospital access?"
 
----
+
 
 3. **Conduct spatial analysis**
 
@@ -783,8 +787,6 @@ safety_zone_tracts <- safety_zone %>%
   arrange(desc(n_high_violation))
 
 
-head(safety_zone_tracts)
-
 ```
 
 ```{r}
@@ -879,9 +881,9 @@ This analysis examined 490 school safety zones across Philadelphia using crime i
 
 
 ## Finally - A few comments about your incorporation of feedback!
-I try to avoid unnecessary code like print() and head(), also hide setup code. 
+I try to avoid unnecessary code like print() and head(). Besides, I used "#| echo: false, #| message: false, and #| results: hide" to hide setup code. 
 
----
+
 
 ## Submission Requirements
 
@@ -892,6 +894,3 @@ I try to avoid unnecessary code like print() and head(), also hide setup code.
    - All code should run without errors
    - All maps and charts should display correctly
 2. Submit the correct and working links of your assignment on Canvas
-
----
-

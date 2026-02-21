@@ -222,5 +222,362 @@
     "title": "Lab 1: Census Data Quality for Policy Decisions",
     "section": "Submission Checklist",
     "text": "Submission Checklist\nBefore submitting your portfolio link on Canvas:\n\nAll code chunks run without errors\nAll “[Fill this in]” prompts have been completed\nTables are properly formatted and readable\nExecutive summary addresses all four required components\nPortfolio navigation includes this assignment\nCensus API key is properly set\nDocument renders correctly to HTML\n\nRemember: Submit your portfolio URL on Canvas, not the file itself. Your assignment should be accessible at your-portfolio-url/labs/lab_1/your_file_name.html"
+  },
+  {
+    "objectID": "lab_2/lab2_template.html",
+    "href": "lab_2/lab2_template.html",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "",
+    "text": "Learning Objectives: - Apply spatial operations to answer policy-relevant research questions - Integrate census demographic data with spatial analysis - Create publication-quality visualizations and maps - Work with spatial data from multiple sources - Communicate findings effectively for policy audiences"
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#assignment-overview",
+    "href": "lab_2/lab2_template.html#assignment-overview",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "",
+    "text": "Learning Objectives: - Apply spatial operations to answer policy-relevant research questions - Integrate census demographic data with spatial analysis - Create publication-quality visualizations and maps - Work with spatial data from multiple sources - Communicate findings effectively for policy audiences"
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#part-1-healthcare-access-for-vulnerable-populations",
+    "href": "lab_2/lab2_template.html#part-1-healthcare-access-for-vulnerable-populations",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "Part 1: Healthcare Access for Vulnerable Populations",
+    "text": "Part 1: Healthcare Access for Vulnerable Populations\n\nResearch Question\nWhich Pennsylvania counties have the highest proportion of vulnerable populations (elderly + low-income) living far from hospitals?\nYour analysis should identify counties that should be priorities for healthcare investment and policy intervention.\n\n\nRequired Analysis Steps\nComplete the following analysis, documenting each step with code and brief explanations:\n\nStep 1: Data Collection (5 points)\nLoad the required spatial data: - Pennsylvania county boundaries - Pennsylvania hospitals (from lecture data) - Pennsylvania census tracts\nYour Task:\n\n#| echo: false\n#| message: false\n#| results: hide\n\n# Load required packages\nlibrary(sf)\nlibrary(tidyverse)\nlibrary(tigris)\nlibrary(tidycensus)\nlibrary(scales)\nlibrary(patchwork)\nlibrary(here)\n\ncensus_api_key(Sys.getenv(\"CENSUS_API_KEY\"))\n\n# Load spatial data\npa_counties &lt;- st_read(here(\"data/Pennsylvania_County_Boundaries.shp\"))\n\nReading layer `Pennsylvania_County_Boundaries' from data source \n  `C:\\Users\\10133\\Desktop\\UPENN\\MUSA5080_PPA\\Portfolio\\data\\Pennsylvania_County_Boundaries.shp' \n  using driver `ESRI Shapefile'\nSimple feature collection with 67 features and 19 fields\nGeometry type: MULTIPOLYGON\nDimension:     XY\nBounding box:  xmin: -8963377 ymin: 4825316 xmax: -8314404 ymax: 5201413\nProjected CRS: WGS 84 / Pseudo-Mercator\n\nhospitals &lt;- st_read(here(\"data/hospitals.geojson\"))\n\nReading layer `hospitals' from data source \n  `C:\\Users\\10133\\Desktop\\UPENN\\MUSA5080_PPA\\Portfolio\\data\\hospitals.geojson' \n  using driver `GeoJSON'\nSimple feature collection with 223 features and 11 fields\nGeometry type: POINT\nDimension:     XY\nBounding box:  xmin: -80.49621 ymin: 39.75163 xmax: -74.86704 ymax: 42.13403\nGeodetic CRS:  WGS 84\n\n# Standardize CRS\nhospitals &lt;- st_transform(hospitals, st_crs(pa_counties))\n\nQuestions to answer: - How many hospitals are in your dataset? There are 223 hospitals in my dataset.\n\nHow many census tracts? There are 3445 census tracts in my dataset.\nWhat coordinate reference system is each dataset in? All of them is now in WGS 1984\n\n\n\nStep 2: Get Demographic Data\nUse tidycensus to download tract-level demographic data for Pennsylvania.\nRequired variables: - Total population - Median household income - Population 65 years and over (you may need to sum multiple age categories)\nYour Task:\nQuestions to answer: - What year of ACS data are you using? 2022 5-year ACS data - How many tracts have missing income data? 62 - What is the median income across all PA census tracts? 70188\n\n\nStep 3: Define Vulnerable Populations\nIdentify census tracts with vulnerable populations based on TWO criteria: 1. Low median household income (choose an appropriate threshold) 2. Significant elderly population (choose an appropriate threshold)\nYour Task:\nQuestions to answer: - What income threshold did you choose and why? I chose the 25th percentile of median household income across PA tracts — meaning that tracts with income in the bottom quarter of the state are flagged\n\nWhat elderly population threshold did you choose and why? I chose the 75th percentile of elderly share across PA tracts — meaning that tracts where the proportion of 65+ residents falls in the top quarter of the state are flagged.\nHow many tracts meet your vulnerability criteria? 165 out of 3,383 valid PA census tracts meet the vulnerability criteria.\nWhat percentage of PA census tracts are considered vulnerable by your definition? Approximately 4.9% of valid PA census tracts are considered vulnerable by this definition.\n\n\n\nStep 4: Calculate Distance to Hospitals\nFor each vulnerable tract, calculate the distance to the nearest hospital.\nYour Task:\n\n\n[1] 4.745881\n\n\n[1] 19.15872\n\n\n[1] 9\n\n\nRequirements: - Use an appropriate projected coordinate system for Pennsylvania - Calculate distances in miles - Explain why you chose your projection\nQuestions to answer: - What is the average distance to the nearest hospital for vulnerable tracts? On average, vulnerable tracts are 4.75 miles from the nearest hospital.\n\nWhat is the maximum distance? The maximum distance to the nearest hospital among vulnerable tracts is 19.16 miles.\nHow many vulnerable tracts are more than 15 miles from the nearest hospital? NINE vulnerable tracts are more than 15 miles from the nearest hospital.\n\n\n\nStep 5: Identify Underserved Areas\nDefine “underserved” as vulnerable tracts that are more than 15 miles from the nearest hospital.\nYour Task:\n\n\n[1] 9\n\n\n[1] 5.454545\n\n\nQuestions to answer: - How many tracts are underserved? Nine.\n\nWhat percentage of vulnerable tracts are underserved? Approximately 5.5% vulnerable tracts are defined as underserved.\nDoes this surprise you? Why or why not? This is not entirely surprising. Pennsylvania has a relatively dense hospital network, particularly in urban areas like Philadelphia and Pittsburgh, which keeps most tracts within reasonable distance. At 5.5%, the underserved share is reasonably small — but the 9 tracts that do exceed 15 miles are concerning, as low-income elderly residents in these areas are least likely to have reliable transportation to bridge that gap.\n\n\n\nStep 6: Aggregate to County Level\nUse spatial joins and aggregation to calculate county-level statistics about vulnerable populations and hospital access.\nYour Task:\n\n# Spatial join tracts to counties\nvulnerable_tracts &lt;- st_transform(vulnerable_tracts, st_crs(pa_counties))\nvulnerable_with_county &lt;- vulnerable_tracts %&gt;%\n  st_join(pa_counties %&gt;% select(COUNTY_NAM))\n\n# Aggregate statistics by county\ncounty_stats &lt;- vulnerable_with_county %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(COUNTY_NAM) %&gt;%\n  summarise(\n    n_vulnerable = n(),\n    n_underserved = sum(underserved, na.rm = TRUE),\n    pct_underserved = (n_underserved / n_vulnerable) * 100,\n    avg_dist = mean(nearest_hosp_dist, na.rm = TRUE),\n    total_vulnerable_pop = sum(pop_65_plus, na.rm = TRUE)\n  ) %&gt;%\n  arrange(desc(n_vulnerable))\n\n# Top 5 counties by percentage underserved\ncounty_stats %&gt;%\n  arrange(desc(pct_underserved)) %&gt;%\n  head(5)\n\n# A tibble: 5 × 6\n  COUNTY_NAM n_vulnerable n_underserved pct_underserved avg_dist\n  &lt;chr&gt;             &lt;int&gt;         &lt;int&gt;           &lt;dbl&gt;    &lt;dbl&gt;\n1 PERRY                 2             2             100     17.5\n2 BRADFORD              1             1             100     16.7\n3 COLUMBIA              1             1             100     16.9\n4 JUNIATA               1             1             100     15.9\n5 MONROE                1             1             100     17.7\n# ℹ 1 more variable: total_vulnerable_pop &lt;dbl&gt;\n\n# Counties with most vulnerable people far from hospitals\ncounty_stats %&gt;%\n  filter(n_underserved &gt; 0) %&gt;%\n  arrange(desc(total_vulnerable_pop)) %&gt;%\n  head(5)\n\n# A tibble: 5 × 6\n  COUNTY_NAM     n_vulnerable n_underserved pct_underserved avg_dist\n  &lt;chr&gt;                 &lt;int&gt;         &lt;int&gt;           &lt;dbl&gt;    &lt;dbl&gt;\n1 LUZERNE                   8             1            12.5     5.03\n2 WARREN                    7             1            14.3     6.87\n3 CRAWFORD                  6             1            16.7     8.36\n4 CLEARFIELD                5             1            20      10.1 \n5 NORTHUMBERLAND            5             1            20      12.8 \n# ℹ 1 more variable: total_vulnerable_pop &lt;dbl&gt;\n\n\nRequired county-level statistics: - Number of vulnerable tracts - Number of underserved tracts\n- Percentage of vulnerable tracts that are underserved - Average distance to nearest hospital for vulnerable tracts - Total vulnerable population\nQuestions to answer: - Which 5 counties have the highest percentage of underserved vulnerable tracts? Perry, Bradford, Columbia, Juniata, and Monroe all have 100% of their vulnerable tracts classified as underserved, with average distances ranging from 15.9 to 17.7 miles from the nearest hospital.\n\nWhich counties have the most vulnerable people living far from hospitals? Luzerne leads with 6,125 vulnerable elderly residents and 1 underserved tract, followed by Warren (5,963), Crawford (4,683), Clearfield (4,368), and Northumberland (3,395).\nAre there any patterns in where underserved counties are located? The underserved counties are predominantly rural, located in central and northern Pennsylvania (Perry, Juniata, Columbia, Bradford, Clearfield, Warren, Crawford). This aligns with the broader pattern of rural healthcare deserts, where low population density makes hospital infrastructure harder to sustain.\n\n\n\nStep 7: Create Summary Table\nCreate a professional table showing the top 10 priority counties for healthcare investment.\nYour Task:\n\n# Create and format priority counties table\nlibrary(knitr)\nlibrary(kableExtra)\n\ncounty_stats %&gt;%\n  arrange(desc(pct_underserved), desc(total_vulnerable_pop)) %&gt;%\n  head(10) %&gt;%\n  mutate(\n    avg_dist = round(avg_dist, 2),\n    pct_underserved = round(pct_underserved, 1),\n    total_vulnerable_pop = comma(total_vulnerable_pop)\n  ) %&gt;%\n  rename(\n    \"County\" = COUNTY_NAM,\n    \"Vulnerable Tracts\" = n_vulnerable,\n    \"Underserved Tracts\" = n_underserved,\n    \"% Underserved\" = pct_underserved,\n    \"Avg. Distance to Hospital (miles)\" = avg_dist,\n    \"Total Vulnerable Population\" = total_vulnerable_pop\n  ) %&gt;%\n  kable(\n    caption = \"Top 10 Priority Counties for Healthcare Investment in Pennsylvania: Counties with the highest share of vulnerable tracts lacking adequate hospital access\",\n    align = c(\"l\", \"c\", \"c\", \"c\", \"c\", \"c\")\n  ) %&gt;%\n  kable_styling(\n    bootstrap_options = c(\"striped\", \"hover\", \"condensed\"),\n    full_width = FALSE\n  )\n\n\nTop 10 Priority Counties for Healthcare Investment in Pennsylvania: Counties with the highest share of vulnerable tracts lacking adequate hospital access\n\n\nCounty\nVulnerable Tracts\nUnderserved Tracts\n% Underserved\nAvg. Distance to Hospital (miles)\nTotal Vulnerable Population\n\n\n\n\nPERRY\n2\n2\n100\n17.53\n1,558\n\n\nBRADFORD\n1\n1\n100\n16.66\n1,545\n\n\nJUNIATA\n1\n1\n100\n15.91\n492\n\n\nMONROE\n1\n1\n100\n17.68\n314\n\n\nCOLUMBIA\n1\n1\n100\n16.91\n282\n\n\nSULLIVAN\n1\n1\n100\n16.91\n282\n\n\nDAUPHIN\n2\n1\n50\n9.95\n2,122\n\n\nTIOGA\n2\n1\n50\n8.65\n1,416\n\n\nCLINTON\n2\n1\n50\n11.03\n1,402\n\n\nFOREST\n2\n1\n50\n15.25\n1,311\n\n\n\n\n\nRequirements: - Use knitr::kable() or similar for formatting - Include descriptive column names - Format numbers appropriately (commas for population, percentages, etc.) - Add an informative caption - Sort by priority (you decide the metric)"
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#part-2-comprehensive-visualization",
+    "href": "lab_2/lab2_template.html#part-2-comprehensive-visualization",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "Part 2: Comprehensive Visualization",
+    "text": "Part 2: Comprehensive Visualization\nUsing the skills from Week 3 (Data Visualization), create publication-quality maps and charts.\n\nMap 1: County-Level Choropleth\nCreate a choropleth map showing healthcare access challenges at the county level.\nYour Task:\n\n# Create county-level access map\nhospitals &lt;- st_transform(hospitals, st_crs(pa_counties))\n\n# Join county_stats to pa_counties spatial data\ncounty_map &lt;- pa_counties %&gt;%\n  left_join(county_stats, by = \"COUNTY_NAM\")\n\n# Create county-level access map\nggplot() +\n  geom_sf(data = county_map,\n          aes(fill = pct_underserved),\n          color = \"white\", linewidth = 0.3) +\n  geom_sf(data = hospitals,\n          color = \"red\", size = 0.8, alpha = 0.6) +\n  scale_fill_distiller(\n    palette = \"YlOrRd\",\n    direction = 1,\n    na.value = \"gray90\",\n    name = \"% Underserved\\nVulnerable Tracts\",\n    labels = scales::label_percent(scale = 1)\n  ) +\n  labs(\n    title = \"County-Level Hospital Access for Vulnerable Populations in Pennsylvania\",\n    subtitle = \"Share of vulnerable tracts more than 15 miles from the nearest hospital\",\n    caption = \"Source: U.S. Census Bureau ACS 2022, PA County Boundaries\\nVulnerable tracts defined as low-income (bottom 25%) with high elderly share (top 25%)\"\n  ) +\n  theme_void()\n\n\n\n\n\n\n\n\nRequirements: - Fill counties by percentage of vulnerable tracts that are underserved - Include hospital locations as points - Use an appropriate color scheme - Include clear title, subtitle, and caption - Use theme_void() or similar clean theme - Add a legend with formatted labels\n\n\nMap 2: Detailed Vulnerability Map\nCreate a map highlighting underserved vulnerable tracts.\nYour Task:\n\n# Create detailed tract-level map\nggplot() +\n  geom_sf(data = pa_counties, \n          fill = \"gray95\", color = \"gray60\", linewidth = 0.3) +\n  geom_sf(data = vulnerable_tracts %&gt;% filter(!underserved),\n          fill = \"lightyellow\", color = NA, alpha = 0.7) +\n  geom_sf(data = vulnerable_tracts %&gt;% filter(underserved),\n          fill = \"red\", color = NA, alpha = 0.9) +\n  geom_sf(data = hospitals,\n          color = \"blue\", size = 0.8, alpha = 0.6) +\n  labs(\n    title = \"Underserved Vulnerable Tracts in Pennsylvania\",\n    subtitle = \"Red tracts are low-income, elderly, and more than 15 miles from the nearest hospital\",\n    caption = \"Source: U.S. Census Bureau ACS 2022\\nBlue points = Hospitals\"\n  ) +\n  theme_void()\n\n\n\n\n\n\n\n\nRequirements: - Show underserved vulnerable tracts in a contrasting color - Include county boundaries for context - Show hospital locations - Use appropriate visual hierarchy (what should stand out?) - Include informative title and subtitle\n\n\nChart: Distribution Analysis\nCreate a visualization showing the distribution of distances to hospitals for vulnerable populations.\nYour Task:\n\n# Create distribution visualization\n\n# Plot 1: Histogram weighted by elderly population\np1 &lt;- ggplot(vulnerable_tracts, aes(x = nearest_hosp_dist, weight = pop_65_plus)) +\n  geom_histogram(aes(fill = after_stat(x) &gt; 15), bins = 30, alpha = 0.8) +\n  scale_fill_manual(\n    values = c(\"FALSE\" = \"steelblue\", \"TRUE\" = \"red\"),\n    labels = c(\"FALSE\" = \"Served\", \"TRUE\" = \"Underserved\"),\n    name = \"\"\n  ) +\n  labs(\n    title = \"Elderly Population by Distance to Nearest Hospital\",\n    subtitle = \"Among vulnerable tracts in Pennsylvania\",\n    x = \"Distance to Nearest Hospital (miles)\",\n    y = \"Total Elderly Population (65+)\",\n    caption = \"Red bars = beyond 15-mile underserved threshold\"\n  ) +\n  theme_minimal()\n\n# Plot 2: Scatter plot of distance vs elderly population\np2 &lt;- ggplot(vulnerable_tracts, aes(x = nearest_hosp_dist, y = pop_65_plus, color = underserved)) +\n  geom_point(alpha = 0.7) +\n  scale_color_manual(\n    values = c(\"FALSE\" = \"steelblue\", \"TRUE\" = \"red\"),\n    labels = c(\"FALSE\" = \"Served\", \"TRUE\" = \"Underserved\"),\n    name = \"\"\n  ) +\n  labs(\n    title = \"Elderly Population vs. Distance to Nearest Hospital by Tract\",\n    subtitle = \"Among vulnerable tracts in Pennsylvania\",\n    x = \"Distance to Nearest Hospital (miles)\",\n    y = \"Total Elderly Population (65+)\",\n    caption = \"Source: U.S. Census Bureau ACS 2022\"\n  ) +\n  theme_minimal()\n\n# Comparison\np1 / p2\n\n\n\n\n\n\n\n#The histogram shows the total elderly population living in the census tracts at certain distance range from the nearest hospital. \n#The majority of bars are concentrated within 5 miles and decline sharply beyond that\n#The dashline marks the threshold of underserved population.\n\nSuggested chart types: - Histogram or density plot of distances - Box plot comparing distances across regions - Bar chart of underserved tracts by county - Scatter plot of distance vs. vulnerable population size\nRequirements: - Clear axes labels with units - Appropriate title - Professional formatting - Brief interpretation (1-2 sentences as a caption or in text)"
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#part-3-bring-your-own-data-analysis",
+    "href": "lab_2/lab2_template.html#part-3-bring-your-own-data-analysis",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "Part 3: Bring Your Own Data Analysis",
+    "text": "Part 3: Bring Your Own Data Analysis\nChoose your own additional spatial dataset and conduct a supplementary analysis.\n\nChallenge Options\nChoose ONE of the following challenge exercises, or propose your own research question using OpenDataPhilly data (https://opendataphilly.org/datasets/).\nSchool Safety Zones - Data: Schools, Crime Incidents, Collision - Question: “Are school zones safe for commuting, or are they danger hotspots?” - Operations: Buffer schools (1000ft safety zone), spatial join with crime incidents and collision count - Policy relevance: Safe Routes to School programs, crossing guard placement\n\n\nYour Analysis\nYour Task:\n\nFind and load additional data\n\nDocument your data source\nCheck and standardize the CRS\nProvide basic summary statistics\n\n\nQuestions to answer: - What dataset did you choose and why? I chose three datasets from OpenDataPhilly: Philadelphia crime incidents (2020–2024 aggregate), traffic collision data (2020–2024), and school parcels. Crime and collision data were chosen because both directly affect student safety around schools. Violent crime threatens personal safety while traffic collisions are a major concern for students walking or biking to school.\n\nWhat is the data source and date? All datasets are from OpenDataPhilly, maintained by the City of Philadelphia. Crime and collision data span 2020–2024 and school parcels reflect current school locations.\nHow many features does it contain? After filtering for relevant crime categories, the crime dataset contains 234,858 incidents across five years. The collision dataset contains 36,303 records over the same period.\nWhat CRS is it in? Did you need to transform it? All datasets are in EPSG 3857 (WGS 84 / Pseudo-Mercator), the same CRS as “pa_counties”. No additional transformation was needed since they already matched.\n\n\nPose a research question\n\nAre school safety zones in Philadelphia’s high-violation tracts disproportionately exposed to crime incidents and traffic hazards?\nExamples: - “Do vulnerable tracts have adequate public transit access to hospitals?” - “Are EMS stations appropriately located near vulnerable populations?” - “Do areas with low vehicle access have worse hospital access?”\n\nConduct spatial analysis\n\nUse at least TWO spatial operations to answer your research question.\nRequired operations (choose 2+): - Buffers - Spatial joins - Spatial filtering with predicates - Distance calculations - Intersections or unions - Point-in-polygon aggregation\nYour Task:\n\n## buffer school safety zone and calculate number of crime and collision for each school\n# 1000ft = 304.8 meters in EPSG 3857\nsafety_zone &lt;- schools %&gt;%\n  st_buffer(dist = 304.8)\n\n# Spatial join\ncrime_in_buffer &lt;- safety_zone %&gt;%\n  st_join(crime) %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(objectid.x) %&gt;%\n  summarise(crime_count = n()) %&gt;%\n  rename(objectid = objectid.x)\n\ncollision_in_buffer &lt;- safety_zone %&gt;%\n  st_join(collision) %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(objectid.x) %&gt;%\n  summarise(collision_count = n()) %&gt;%\n  rename(objectid = objectid.x)\n\n# Join counts\nsafety_zone &lt;- schools %&gt;%\n  st_buffer(dist = 304.8) %&gt;%\n  left_join(crime_in_buffer, by = \"objectid\") %&gt;%\n  left_join(collision_in_buffer, by = \"objectid\") %&gt;%\n  mutate(\n    crime_count = replace_na(crime_count, 0),\n    collision_count = replace_na(collision_count, 0),\n    danger_score = crime_count + collision_count\n  )\n\n##identify the top 5 dangerous school parcels by crime/collision/crime + collision (= danger)/\n##top 20% crime and top 20% collision\n\n# Flag high-violation schools (top 20% in BOTH crime and collision)\ncrime_cut &lt;- quantile(safety_zone$crime_count, 0.80, na.rm = TRUE)\ncollision_cut &lt;- quantile(safety_zone$collision_count, 0.80, na.rm = TRUE)\n\nsafety_zone &lt;- safety_zone %&gt;%\n  mutate(high_violation = crime_count &gt;= crime_cut & collision_count &gt;= collision_cut)\nsum(safety_zone$high_violation)\n\n[1] 52\n\nggplot() +\n  geom_sf(data = schools, fill = \"gray90\", color = \"gray60\", linewidth = 0.3) +\n  geom_sf(data = safety_zone %&gt;% filter(high_violation),\n          fill = \"red\", alpha = 0.6, color = \"darkred\", linewidth = 0.3) +\n  labs(\n    title = \"High-Violation School Safety Zones in Philadelphia\",\n    subtitle = \"Schools in top 20% of both crime and collision counts\",\n    caption = \"Source: OpenDataPhilly 2020-2024\"\n  ) +\n  theme_void()\n\n\n\n\n\n\n\n# top 5 dangerous school parcels\ntop5_crime &lt;- safety_zone %&gt;%\n  st_drop_geometry() %&gt;%\n  arrange(desc(crime_count)) %&gt;%\n  head(5) %&gt;%\n  select(objectid, school_nam, crime_count, collision_count, danger_score) %&gt;%\n  kable(caption = \"Top 5 Schools by Crime Count\",\n        col.names = c(\"ID\", \"School Name\", \"Crime Count\", \"Collision Count\", \"Danger Score\")) %&gt;%\n  kable_styling(bootstrap_options = c(\"striped\", \"hover\"), full_width = FALSE)\n\ntop5_collision &lt;- safety_zone %&gt;%\n  st_drop_geometry() %&gt;%\n  arrange(desc(collision_count)) %&gt;%\n  head(5) %&gt;%\n  select(objectid, school_nam, crime_count, collision_count, danger_score) %&gt;%\n  kable(caption = \"Top 5 Schools by Collision Count\",\n        col.names = c(\"ID\", \"School Name\", \"Crime Count\", \"Collision Count\", \"Danger Score\")) %&gt;%\n  kable_styling(bootstrap_options = c(\"striped\", \"hover\"), full_width = FALSE)\n\ntop5_danger &lt;- safety_zone %&gt;%\n  st_drop_geometry() %&gt;%\n  arrange(desc(danger_score)) %&gt;%\n  head(5) %&gt;%\n  select(objectid, school_nam, crime_count, collision_count, danger_score) %&gt;%\n  kable(caption = \"Top 5 Schools by Combined Danger Score\",\n        col.names = c(\"ID\", \"School Name\", \"Crime Count\", \"Collision Count\", \"Danger Score\")) %&gt;%\n  kable_styling(bootstrap_options = c(\"striped\", \"hover\"), full_width = FALSE)\n\ntop5_crime\n\n\nTop 5 Schools by Crime Count\n\n\nID\nSchool Name\nCrime Count\nCollision Count\nDanger Score\n\n\n\n\n86\nCONWELL, RUSSELL MIDDLE SCHOOL\n2053\n46\n2099\n\n\n315\nWILLARD, FRANCES E. SCHOOL\n1400\n44\n1444\n\n\n222\nFREIRE CHARTER SCHOOL\n1159\n60\n1219\n\n\n464\nK012 KIDS SCHOOL\n1126\n68\n1194\n\n\n70\nVISITATION SCHOOL\n912\n74\n986\n\n\n\n\ntop5_collision\n\n\nTop 5 Schools by Collision Count\n\n\nID\nSchool Name\nCrime Count\nCollision Count\nDanger Score\n\n\n\n\n119\nDUCKREY, TANNER SCHOOL\n566\n150\n716\n\n\n137\nROMAN CATHOLIC HIGH SCHOOL\n330\n141\n471\n\n\n331\nKENDERTON ELEMENTARY\n380\n133\n513\n\n\n313\nYOUTHBUILD PHILADELPHIA CHARTER\n659\n123\n782\n\n\n452\nTECH FREIRE CHARTER SCHOOL\n618\n123\n741\n\n\n\n\ntop5_danger\n\n\nTop 5 Schools by Combined Danger Score\n\n\nID\nSchool Name\nCrime Count\nCollision Count\nDanger Score\n\n\n\n\n86\nCONWELL, RUSSELL MIDDLE SCHOOL\n2053\n46\n2099\n\n\n315\nWILLARD, FRANCES E. SCHOOL\n1400\n44\n1444\n\n\n222\nFREIRE CHARTER SCHOOL\n1159\n60\n1219\n\n\n464\nK012 KIDS SCHOOL\n1126\n68\n1194\n\n\n70\nVISITATION SCHOOL\n912\n74\n986\n\n\n\n\n\n\n##calculate the average distance from danger point in a school buffer to the school\nschools &lt;- rename(schools, OBJECTID = objectid)\n\n# Crime distances\ncrime_dist_matrix &lt;- st_distance(crime, schools)\n\ncrime_dist &lt;- crime %&gt;%\n  mutate(dist_to_school = apply(crime_dist_matrix, 1, min)) %&gt;%\n  st_join(safety_zone %&gt;% select(objectid)) %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(objectid.y) %&gt;%\n  summarise(avg_crime_dist = mean(dist_to_school, na.rm = TRUE)) %&gt;%\n  rename(objectid = objectid.y)\n\nsafety_zone &lt;- safety_zone %&gt;%\n  left_join(crime_dist, by = \"objectid\")\n\n# Collision distances\ncollision_dist_matrix &lt;- st_distance(collision, schools)\n\ncollision_dist &lt;- collision %&gt;%\n  mutate(dist_to_school = apply(collision_dist_matrix, 1, min)) %&gt;%\n  st_join(safety_zone %&gt;% select(objectid)) %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(objectid.y) %&gt;%\n  summarise(avg_collision_dist = mean(dist_to_school, na.rm = TRUE)) %&gt;%\n  rename(objectid = objectid.y)\n\nsafety_zone &lt;- safety_zone %&gt;%\n  left_join(collision_dist, by = \"objectid\")\n\n# Top 5 by average crime distance\ntop5_crime_dist &lt;- safety_zone %&gt;%\n  st_drop_geometry() %&gt;%\n  arrange(avg_crime_dist) %&gt;%\n  head(5) %&gt;%\n  select(objectid, school_nam, avg_crime_dist) %&gt;%\n  kable(caption = \"Top 5 Schools with Least Average Crime Distance (meters)\",\n        col.names = c(\"ID\", \"School Name\", \"Avg Crime Distance (m)\")) %&gt;%\n  kable_styling(bootstrap_options = c(\"striped\", \"hover\"), full_width = FALSE)\n\n# Top 5 by average collision distance\ntop5_collision_dist &lt;- safety_zone %&gt;%\n  st_drop_geometry() %&gt;%\n  arrange(avg_collision_dist) %&gt;%\n  head(5) %&gt;%\n  select(objectid, school_nam, avg_collision_dist) %&gt;%\n  kable(caption = \"Top 5 Schools by Average Collision Distance (meters)\",\n        col.names = c(\"ID\", \"School Name\", \"Avg Collision Distance (m)\")) %&gt;%\n  kable_styling(bootstrap_options = c(\"striped\", \"hover\"), full_width = FALSE)\n\ntop5_crime_dist\n\n\nTop 5 Schools with Least Average Crime Distance (meters)\n\n\nID\nSchool Name\nAvg Crime Distance (m)\n\n\n\n\n73\nNAZARETH ACADEMY HIGH SCHOOL\n39.56615\n\n\n384\nMATH, SCIENCE AND TECHNOLOGY\n55.24363\n\n\n473\nNA\n100.19317\n\n\n304\nROXBOROUGH HIGH SCHOOL\n100.85450\n\n\n130\nFELTONVILLE ARTS & SCIENCES\n114.11754\n\n\n\n\ntop5_collision_dist\n\n\nTop 5 Schools by Average Collision Distance (meters)\n\n\nID\nSchool Name\nAvg Collision Distance (m)\n\n\n\n\n186\nMIFFLIN, THOMAS SCHOOL\n95.84298\n\n\n153\nPENNSYLVANIA SCHOOL FOR THE DEAF\n104.24374\n\n\n173\nCARNELL, LAURA H. SCHOOL\n110.58027\n\n\n467\nSAINTS TABERNACLE DAY SCHOOL\n114.22460\n\n\n254\nMASTERY CHARTER @ PICKETT\n116.87737\n\n\n\n\n# Flag schools with least 20% crime distance and least 20% collision distance\ncrime_dist_cut &lt;- quantile(safety_zone$avg_crime_dist, 0.20, na.rm = TRUE)\ncollision_dist_cut &lt;- quantile(safety_zone$avg_collision_dist, 0.20, na.rm = TRUE)\n\nsafety_zone &lt;- safety_zone %&gt;%\n  mutate(high_violation_dist = avg_crime_dist &lt;= crime_dist_cut & avg_collision_dist &lt;= collision_dist_cut)\ncat(\"Number of high-violation distance schools:\", sum(safety_zone$high_violation_dist, na.rm = TRUE), \"\\n\")\n\nNumber of high-violation distance schools: 46 \n\n##aggregate by census tract and county\n# Step 5: Aggregate by census tract and county\n# First transform census_tracts to match CRS\npa_tract &lt;- st_transform(pa_tract, st_crs(safety_zone))\n\n# Spatial join safety_zone to census tracts\nsafety_zone_tracts &lt;- safety_zone %&gt;%\n  st_join(pa_tract %&gt;% select(GEOID, NAME)) %&gt;%\n  st_drop_geometry() %&gt;%\n  group_by(GEOID, NAME) %&gt;%\n  summarise(\n    n_schools = n(),\n    n_high_violation = sum(high_violation, na.rm = TRUE),\n    n_high_violation_dist = sum(high_violation_dist, na.rm = TRUE),\n    avg_crime_count = mean(crime_count, na.rm = TRUE),\n    avg_collision_count = mean(collision_count, na.rm = TRUE),\n    avg_crime_dist = mean(avg_crime_dist, na.rm = TRUE),\n    avg_collision_dist = mean(avg_collision_dist, na.rm = TRUE)\n  ) %&gt;%\n  mutate(\n    high_violation_rate = n_high_violation / n_schools * 100,\n    high_violation_dist_rate = n_high_violation_dist / n_schools * 100,\n    tract_num = str_extract(NAME, \"(?&lt;=Census Tract )\\\\d+\\\\.?\\\\d*\")\n  ) %&gt;%\n  arrange(desc(n_high_violation))\n\n\n##visualization\n# Visualization 1: Tract-level choropleth map\ntract_map &lt;- pa_tract %&gt;%\n  left_join(safety_zone_tracts %&gt;% st_drop_geometry(), by = \"GEOID\") %&gt;%\n  filter(!is.na(high_violation_rate))\n\nggplot() +\n  geom_sf(data = pa_counties %&gt;% filter(COUNTY_NAM == \"PHILADELPHIA\"),\n          fill = \"gray95\", color = \"gray60\", linewidth = 0.3) +\n  geom_sf(data = tract_map,\n          aes(fill = high_violation_rate),\n          color = \"white\", linewidth = 0.2) +\n  scale_fill_distiller(\n    palette = \"YlOrRd\",\n    direction = 1,\n    na.value = \"gray90\",\n    name = \"% High Violation\\nSchools\",\n    labels = scales::label_percent(scale = 1)\n  ) +\n  labs(\n    title = \"High-Violation School Safety Zones by Census Tract\",\n    subtitle = \"Share of schools in top 20% of both crime and collision counts\",\n    caption = \"Source: OpenDataPhilly 2020-2024\"\n  ) +\n  theme_void()\n\n\n\n\n\n\n\n# Visualization 2: Compare high_violation vs high_violation_dist\nggplot() +\n  geom_sf(data = pa_counties %&gt;% filter(COUNTY_NAM == \"PHILADELPHIA\"),\n          fill = \"gray95\", color = \"gray60\", linewidth = 0.3) +\n  geom_sf(data = safety_zone,\n          fill = \"gray80\", color = NA, alpha = 0.5) +\n  geom_sf(data = safety_zone %&gt;% filter(high_violation),\n          fill = \"orange\", color = NA, alpha = 0.7) +\n  geom_sf(data = safety_zone %&gt;% filter(high_violation_dist),\n          fill = \"red\", color = NA, alpha = 0.7) +\n  labs(\n    title = \"High-Violation School Safety Zones in Philadelphia\",\n    subtitle = \"Orange = high crime/collision count | Red = close crime/collision violations\",\n    caption = \"Source: OpenDataPhilly 2020-2024\"\n  ) +\n  theme_void()\n\n\n\n\n\n\n\n# Visualization 3: Crime and Collision Distribution Across Philadelphia School Safety Zones\np3 &lt;- ggplot(safety_zone, aes(x = crime_count, fill = high_violation)) +\n  geom_histogram(bins = 30, alpha = 0.8) +\n  scale_fill_manual(\n    values = c(\"FALSE\" = \"steelblue\", \"TRUE\" = \"red\"),\n    labels = c(\"FALSE\" = \"Normal\", \"TRUE\" = \"High Violation\"),\n    name = \"\"\n  ) +\n  labs(\n    title = \"Distribution of Crime Counts Across School Safety Zones\",\n    x = \"Crime Count (2020-2024)\",\n    y = \"Number of Schools\",\n    caption = \"Red = top 20% in both crime and collision counts\"\n  ) +\n  theme_minimal()\n\n# p2: Scatter plot of crime_count vs collision_count colored by high_violation\np4 &lt;- ggplot(safety_zone, aes(x = crime_count, y = collision_count, color = high_violation)) +\n  geom_point(alpha = 0.7) +\n  scale_color_manual(\n    values = c(\"FALSE\" = \"steelblue\", \"TRUE\" = \"red\"),\n    labels = c(\"FALSE\" = \"Normal\", \"TRUE\" = \"High Violation\"),\n    name = \"\"\n  ) +\n  labs(\n    title = \"Crime Count vs. Collision Count by School\",\n    x = \"Crime Count (2020-2024)\",\n    y = \"Collision Count (2020-2024)\",\n    caption = \"Source: OpenDataPhilly 2020-2024\"\n  ) +\n  theme_minimal()\n\np3 / p4\n\n\n\n\n\n\n\n\nAnalysis requirements: - Clear code comments explaining each step - Appropriate CRS transformations - Summary statistics or counts - At least one map showing your findings - Brief interpretation of results (3-5 sentences)\nYour interpretation: This analysis examined 490 school safety zones across Philadelphia using crime incident and traffic collision data from 2020 to 2024. Of the 490 schools, 52 (10.6%) were classified as high-violation by count — falling in the top 20% of both crime and collision counts — while 46 schools (9.4%) were flagged as high-violation by distance, meaning violations tend to cluster very close to the school itself. The histogram shows that most schools have fewer than 500 crime incidents over the five-year period, with high-violation schools appearing at the higher end of the distribution, confirming that the top 20% threshold effectively separates genuinely dangerous zones from the rest. The scatter plot further reveals a positive relationship between crime count and collision count — schools with more crime also tend to have more collisions — and high-violation schools cluster distinctly in the upper right, indicating that danger tends to be compounded rather than isolated to a single incident type. At the census tract level, dangerous school zones are mostly concentrated in tracts along North Broad Street, Kensington, and West Philadelphia, underscoring the need for targeted Safe Routes to School investments in these specific corridors where students face both high volumes of crime and violations occurring in close proximity to school grounds."
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#finally---a-few-comments-about-your-incorporation-of-feedback",
+    "href": "lab_2/lab2_template.html#finally---a-few-comments-about-your-incorporation-of-feedback",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "Finally - A few comments about your incorporation of feedback!",
+    "text": "Finally - A few comments about your incorporation of feedback!\nI try to avoid unnecessary code like print() and head(). Besides, I used “#| echo: false, #| message: false, and #| results: hide” to hide setup code."
+  },
+  {
+    "objectID": "lab_2/lab2_template.html#submission-requirements",
+    "href": "lab_2/lab2_template.html#submission-requirements",
+    "title": "Lab 2: Spatial Analysis and Visualization",
+    "section": "Submission Requirements",
+    "text": "Submission Requirements\nWhat to submit:\n\nRendered HTML document posted to your course portfolio with all code, outputs, maps, and text\n\nUse embed-resources: true in YAML so it’s a single file\nAll code should run without errors\nAll maps and charts should display correctly\n\nSubmit the correct and working links of your assignment on Canvas"
+  },
+  {
+    "objectID": "week5-complete-slides.html",
+    "href": "week5-complete-slides.html",
+    "title": "Introduction to Linear Regression",
+    "section": "",
+    "text": "Scenario: You’re advising a state agency on resource allocation.\nSome counties have sparse data. Can you predict their median income using data from counties with better measurements?\nBroader question: How do we make informed predictions when we don’t have complete information?"
+  },
+  {
+    "objectID": "week5-complete-slides.html#the-general-problem",
+    "href": "week5-complete-slides.html#the-general-problem",
+    "title": "Introduction to Linear Regression",
+    "section": "The General Problem",
+    "text": "The General Problem\nWe observe data: counties, income, population, education, etc.\nWe believe there’s some relationship between these variables.\nStatistical learning = a set of approaches for estimating that relationship"
+  },
+  {
+    "objectID": "week5-complete-slides.html#formalizing-the-relationship",
+    "href": "week5-complete-slides.html#formalizing-the-relationship",
+    "title": "Introduction to Linear Regression",
+    "section": "Formalizing the Relationship",
+    "text": "Formalizing the Relationship\nFor any quantitative response Y and predictors X₁, X₂, … Xₚ:\n\\[Y = f(X) + \\epsilon\\]\nWhere:\n\nf = the systematic information X provides about Y\nε = random error (irreducible)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#what-is-f",
+    "href": "week5-complete-slides.html#what-is-f",
+    "title": "Introduction to Linear Regression",
+    "section": "What is f?",
+    "text": "What is f?\nf represents the true relationship between predictors and outcome\n\nIt’s fixed but unknown\nIt’s what we’re trying to estimate\nDifferent X values produce different Y values through f\n\nExample:\n\nY = median income\nX = population, education, poverty rate\nf = the way these factors systematically relate to income"
+  },
+  {
+    "objectID": "week5-complete-slides.html#why-estimate-f",
+    "href": "week5-complete-slides.html#why-estimate-f",
+    "title": "Introduction to Linear Regression",
+    "section": "Why Estimate f?",
+    "text": "Why Estimate f?\nTwo main reasons:\n1. Prediction\n\nEstimate Y for new observations\nDon’t necessarily care about the exact form of f\nFocus: accuracy of predictions\n\n2. Inference\n\nUnderstand how X affects Y\nWhich predictors matter?\nWhat’s the nature of the relationship?\nFocus: interpreting the model"
+  },
+  {
+    "objectID": "week5-complete-slides.html#how-do-we-estimate-f",
+    "href": "week5-complete-slides.html#how-do-we-estimate-f",
+    "title": "Introduction to Linear Regression",
+    "section": "How Do We Estimate f?",
+    "text": "How Do We Estimate f?\nTwo broad approaches:\nParametric Methods\n\nMake an assumption about the functional form (e.g., linear)\nReduces problem to estimating a few parameters\nEasier to interpret\nThis is what we’ll focus on\n\nNon-Parametric Methods\n\nDon’t assume a specific form\nMore flexible\nRequire more data\nHarder to interpret"
+  },
+  {
+    "objectID": "week5-complete-slides.html#parametric-vs.-non-parametric",
+    "href": "week5-complete-slides.html#parametric-vs.-non-parametric",
+    "title": "Introduction to Linear Regression",
+    "section": "Parametric vs. Non-Parametric",
+    "text": "Parametric vs. Non-Parametric\n\nKey difference:\n\nParametric (blue): We assume f is linear, then estimate β₀ and β₁\nNon-parametric (green): We let the data determine the shape of f\n\n\n\n\n\n\n\nNoteWhat about deep learning?\n\n\n\nNeural networks are technically parametric (millions of parameters!), but achieve flexibility through parameter quantity rather than assuming a rigid form. We won’t cover them in this course, but they follow the same Y = f(X) + ε framework."
+  },
+  {
+    "objectID": "week5-complete-slides.html#parametric-approach-linear-regression",
+    "href": "week5-complete-slides.html#parametric-approach-linear-regression",
+    "title": "Introduction to Linear Regression",
+    "section": "Parametric Approach: Linear Regression",
+    "text": "Parametric Approach: Linear Regression\nThe assumption: Relationship between X and Y is linear\n\\[Y \\approx \\beta_0 + \\beta_1X_1 + \\beta_2X_2 + ... + \\beta_pX_p\\]\nThe task: Estimate the β coefficients using our sample data\nThe method: Ordinary Least Squares (OLS)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#why-linear-regression",
+    "href": "week5-complete-slides.html#why-linear-regression",
+    "title": "Introduction to Linear Regression",
+    "section": "Why Linear Regression?",
+    "text": "Why Linear Regression?\nAdvantages:\n\nSimple and interpretable\nWell-understood properties\nWorks remarkably well for many problems\nFoundation for more complex methods\n\nLimitations:\n\nAssumes linearity (we’ll test this)\nSensitive to outliers\nMakes several assumptions (we’ll check these)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#prediction-vs-inference",
+    "href": "week5-complete-slides.html#prediction-vs-inference",
+    "title": "Introduction to Linear Regression",
+    "section": "Prediction vs Inference",
+    "text": "Prediction vs Inference\nThe same model serves different purposes:\n\n\nInference\n\n“Does education affect income?”\nFocus on coefficients\nStatistical significance matters\nUnderstand mechanisms\n\n\nPrediction\n\n“What’s County Y’s income?”\nFocus on accuracy\nPrediction intervals matter\nDon’t need to understand why\n\n\n\nToday: We’ll do both, but emphasize prediction"
+  },
+  {
+    "objectID": "week5-complete-slides.html#example-prediction",
+    "href": "week5-complete-slides.html#example-prediction",
+    "title": "Introduction to Linear Regression",
+    "section": "Example: Prediction",
+    "text": "Example: Prediction\nGovernment use case:\nCensus misses people in hard-to-count areas. Can we predict:\n\nIncome for areas with poor survey response?\nPopulation for planning purposes?\nResource needs based on demographics?\n\nThe model doesn’t explain WHY these relationships exist, but if predictions are accurate, they can be useful for policy"
+  },
+  {
+    "objectID": "week5-complete-slides.html#example-inference",
+    "href": "week5-complete-slides.html#example-inference",
+    "title": "Introduction to Linear Regression",
+    "section": "Example: Inference",
+    "text": "Example: Inference\nResearch use case:\nUnderstanding gentrification:\n\nWhich neighborhood characteristics explain income change?\nHow much does education matter vs. proximity to downtown?\nAre policy interventions associated with outcomes?\n\nHere we care about the coefficients and what they tell us about mechanisms"
+  },
+  {
+    "objectID": "week5-complete-slides.html#connection-to-week-2-algorithmic-bias",
+    "href": "week5-complete-slides.html#connection-to-week-2-algorithmic-bias",
+    "title": "Introduction to Linear Regression",
+    "section": "Connection to Week 2: Algorithmic Bias",
+    "text": "Connection to Week 2: Algorithmic Bias\nRemember the healthcare algorithm that discriminated?\nThe model: Predicted healthcare needs using costs as proxy\nTechnically: Probably had good R², low prediction error (good “fit”)\nEthically: Learned and amplified existing discrimination\n\n\n\n\n\n\nImportantCritical Point\n\n\n\nA model can be statistically “good” while being ethically terrible for decision-making."
+  },
+  {
+    "objectID": "week5-complete-slides.html#start-with-data-and-visualization",
+    "href": "week5-complete-slides.html#start-with-data-and-visualization",
+    "title": "Introduction to Linear Regression",
+    "section": "Start with Data and Visualization",
+    "text": "Start with Data and Visualization\nLet’s apply these concepts to PA counties:\n\n\nGetting data from the 2018-2022 5-year ACS\n\n\n`geom_smooth()` using formula = 'y ~ x'"
+  },
+  {
+    "objectID": "week5-complete-slides.html#what-do-we-see",
+    "href": "week5-complete-slides.html#what-do-we-see",
+    "title": "Introduction to Linear Regression",
+    "section": "What Do We See?",
+    "text": "What Do We See?\nBefore fitting any model, discuss the visualization:\n\nGenerally positive relationship\nConsiderable scatter (not deterministic)\nMost counties are small (clustered left)\nOne large county with surprisingly low income\nWider confidence band at higher populations\n\nQuestion: What does this tell us about f(X)?"
+  },
+  {
+    "objectID": "week5-complete-slides.html#fit-the-model",
+    "href": "week5-complete-slides.html#fit-the-model",
+    "title": "Introduction to Linear Regression",
+    "section": "Fit the Model",
+    "text": "Fit the Model\n\n\nCode\nmodel1 &lt;- lm(median_incomeE ~ total_popE, data = pa_data)\nsummary(model1)\n\n\n\nCall:\nlm(formula = median_incomeE ~ total_popE, data = pa_data)\n\nResiduals:\n   Min     1Q Median     3Q    Max \n-39536  -6013  -1868   5075  44196 \n\nCoefficients:\n                Estimate   Std. Error t value             Pr(&gt;|t|)    \n(Intercept) 62855.819808  1760.477709  35.704 &lt; 0.0000000000000002 ***\ntotal_popE      0.021477     0.005192   4.137             0.000103 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 11820 on 65 degrees of freedom\nMultiple R-squared:  0.2084,    Adjusted R-squared:  0.1962 \nF-statistic: 17.11 on 1 and 65 DF,  p-value: 0.0001032"
+  },
+  {
+    "objectID": "week5-complete-slides.html#interpreting-coefficients",
+    "href": "week5-complete-slides.html#interpreting-coefficients",
+    "title": "Introduction to Linear Regression",
+    "section": "Interpreting Coefficients",
+    "text": "Interpreting Coefficients\nIntercept (β₀) = $62,855\n\nExpected income when population = 0\nNot usually meaningful in practice\n\nSlope (β₁) = $0.02\n\nFor each additional person, income increases by $0.02\nMore useful: For every 1,000 people, income increases by ~$20\n\nIs this relationship real?\n\nNull hypothesis is β₁ = 0 (population has no relationship to income) (Note: note, not testing causality, like “population has no effect on income”)\np-value &lt; 0.001 → Very unlikely to see this if true β₁ = 0\nWe can reject the null hypothesis"
+  },
+  {
+    "objectID": "week5-complete-slides.html#the-holy-grail-concept",
+    "href": "week5-complete-slides.html#the-holy-grail-concept",
+    "title": "Introduction to Linear Regression",
+    "section": "The “Holy Grail” Concept",
+    "text": "The “Holy Grail” Concept\n\n\nOur estimates are just that: estimates of the true (unknown) parameters\nKey insight:\n\nRed line = true relationship (unknowable)\nBlue line = our estimate from this sample (n) of the total population (N)\nDifferent samples (n) of the same population (N) → slightly different blue lines\nStandard errors quantify this uncertainty"
+  },
+  {
+    "objectID": "week5-complete-slides.html#statistical-significance",
+    "href": "week5-complete-slides.html#statistical-significance",
+    "title": "Introduction to Linear Regression",
+    "section": "Statistical Significance",
+    "text": "Statistical Significance\nThe logic:\n\nNull hypothesis (H₀): β₁ = 0 (no relationship)\nOur estimate: β₁ = 0.02\nQuestion: Could we get 0.02 just by chance if H₀ is true?\n\nt-statistic: How many standard errors away from 0?\n\nBigger |t| = more confidence the relationship is real\nRule of thumb: |t| &gt; 3 indicates strong evidence the relationship is real\n\np-value: Probability of seeing our estimate if H₀ is true\n\nSmall p → reject H₀, conclude relationship exists"
+  },
+  {
+    "objectID": "week5-complete-slides.html#how-good-is-this-model",
+    "href": "week5-complete-slides.html#how-good-is-this-model",
+    "title": "Introduction to Linear Regression",
+    "section": "How Good is This Model?",
+    "text": "How Good is This Model?\nTwo key questions:\n\nHow well does it fit the data we used? (in-sample fit)\nHow well would it predict new data? (out-of-sample performance)\n\nThese are NOT the same thing!"
+  },
+  {
+    "objectID": "week5-complete-slides.html#in-sample-fit-r²",
+    "href": "week5-complete-slides.html#in-sample-fit-r²",
+    "title": "Introduction to Linear Regression",
+    "section": "In-Sample Fit: R²",
+    "text": "In-Sample Fit: R²\nR² = 0.208\n“21% of variation in income is explained by population”\nIs this good?\n\nDepends on your goal!\nFor prediction: Moderate\nFor inference: Shows population matters, but other factors exist\n\nR² alone doesn’t tell us if the model is trustworthy"
+  },
+  {
+    "objectID": "week5-complete-slides.html#the-problem-overfitting",
+    "href": "week5-complete-slides.html#the-problem-overfitting",
+    "title": "Introduction to Linear Regression",
+    "section": "The Problem: Overfitting",
+    "text": "The Problem: Overfitting\nThree scenarios:\n\nUnderfitting: Model too simple (high bias)\nGood fit: Captures pattern without noise\nOverfitting: Memorizes training data (high variance)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#overfitting-in-regression",
+    "href": "week5-complete-slides.html#overfitting-in-regression",
+    "title": "Introduction to Linear Regression",
+    "section": "Overfitting in Regression",
+    "text": "Overfitting in Regression\n\n\n`geom_smooth()` using formula = 'y ~ x'\n\n\n\n\n\n\n\n\n\nThe danger: High R² doesn’t mean good predictions!"
+  },
+  {
+    "objectID": "week5-complete-slides.html#traintest-split",
+    "href": "week5-complete-slides.html#traintest-split",
+    "title": "Introduction to Linear Regression",
+    "section": "Train/Test Split",
+    "text": "Train/Test Split\nSolution: Hold out some data to test predictions\n\n\nCode\nset.seed(123)\nn &lt;- nrow(pa_data)\n\n# 70% training, 30% testing\ntrain_indices &lt;- sample(1:n, size = 0.7 * n)\ntrain_data &lt;- pa_data[train_indices, ]\ntest_data &lt;- pa_data[-train_indices, ]\n\n# Fit on training data only\nmodel_train &lt;- lm(median_incomeE ~ total_popE, data = train_data)\n\n# Predict on test data\ntest_predictions &lt;- predict(model_train, newdata = test_data)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#evaluate-predictions",
+    "href": "week5-complete-slides.html#evaluate-predictions",
+    "title": "Introduction to Linear Regression",
+    "section": "Evaluate Predictions",
+    "text": "Evaluate Predictions\n\n\nCode\n# Calculate prediction error (RMSE)\nrmse_test &lt;- sqrt(mean((test_data$median_incomeE - test_predictions)^2))\nrmse_train &lt;- summary(model_train)$sigma\n\ncat(\"Training RMSE:\", round(rmse_train, 0), \"\\n\")\n\n\nTraining RMSE: 12893 \n\n\nCode\ncat(\"Test RMSE:\", round(rmse_test, 0), \"\\n\")\n\n\nTest RMSE: 9536 \n\n\n\n\n\n\n\n\nNoteInterpreting RMSE\n\n\n\nOn new data (test set), our predictions are off by ~$9,500 on average. Is this level of error acceptable for policy decisions?"
+  },
+  {
+    "objectID": "week5-complete-slides.html#cross-validation",
+    "href": "week5-complete-slides.html#cross-validation",
+    "title": "Introduction to Linear Regression",
+    "section": "Cross-Validation",
+    "text": "Cross-Validation\nBetter approach: Multiple train/test splits\n\nGives more stable estimate of true prediction performance"
+  },
+  {
+    "objectID": "week5-complete-slides.html#cross-validation-in-action",
+    "href": "week5-complete-slides.html#cross-validation-in-action",
+    "title": "Introduction to Linear Regression",
+    "section": "Cross-Validation in Action",
+    "text": "Cross-Validation in Action\n\n\nCode\nlibrary(caret)\n\n\nWarning: package 'caret' was built under R version 4.5.2\n\n\nLoading required package: lattice\n\n\n\nAttaching package: 'caret'\n\n\nThe following object is masked from 'package:purrr':\n\n    lift\n\n\nCode\n# 10-fold cross-validation\ntrain_control &lt;- trainControl(method = \"cv\", number = 10)\n\ncv_model &lt;- train(median_incomeE ~ total_popE,\n                  data = pa_data,\n                  method = \"lm\",\n                  trControl = train_control)\n\ncv_model$results\n\n\n  intercept     RMSE  Rsquared      MAE   RMSESD RsquaredSD    MAESD\n1      TRUE 12577.76 0.5643826 8859.865 5609.002  0.2997098 2238.042\n\n\nKey Metrics (Averaged Across 10 Folds)\n\nRMSE: Typical prediction error (~$12,578) - penalizes large errors more\nR²: % of variation explained (0.564)\nMAE: Average absolute error (~$8,860) - easier to interpret"
+  },
+  {
+    "objectID": "week5-complete-slides.html#when-can-we-trust-this-model",
+    "href": "week5-complete-slides.html#when-can-we-trust-this-model",
+    "title": "Introduction to Linear Regression",
+    "section": "When Can We Trust This Model?",
+    "text": "When Can We Trust This Model?\nLinear regression makes assumptions. If violated:\n\nCoefficients may be biased\nStandard errors wrong\nPredictions unreliable\n\nWe must check diagnostics before trusting any model"
+  },
+  {
+    "objectID": "week5-complete-slides.html#assumption-1-linearity",
+    "href": "week5-complete-slides.html#assumption-1-linearity",
+    "title": "Introduction to Linear Regression",
+    "section": "Assumption 1: Linearity",
+    "text": "Assumption 1: Linearity\nWhat we assume: Relationship is actually linear\nHow to check: Residual plot\n\n\nCode\npa_data$residuals &lt;- residuals(model1)\npa_data$fitted &lt;- fitted(model1)\n\nggplot(pa_data, aes(x = fitted, y = residuals)) +\n  geom_point() +\n  geom_hline(yintercept = 0, color = \"red\", linetype = \"dashed\") +\n  labs(title = \"Residual Plot\", x = \"Fitted Values\", y = \"Residuals\") +\n  theme_minimal()"
+  },
+  {
+    "objectID": "week5-complete-slides.html#reading-residual-plots",
+    "href": "week5-complete-slides.html#reading-residual-plots",
+    "title": "Introduction to Linear Regression",
+    "section": "Reading Residual Plots",
+    "text": "Reading Residual Plots\n\n\nGood\n\nRandom scatter\nPoints around 0\nConstant spread\n\n\nBad\n\nCurved pattern\nModel missing something\nPredictions biased\n\n\n\n\n\n\n\n\n\nImportantWhy This Matters for Prediction\n\n\n\nLinearity violations hurt predictions, not just inference:\n\nIf the true relationship is curved and you fit a straight line, you’ll systematically underpredict in some regions and overpredict in others\nBiased predictions in predictable ways (not random errors!)\nResidual plots should show random scatter - any pattern means your model is missing something systematic"
+  },
+  {
+    "objectID": "week5-complete-slides.html#assumption-2-constant-variance",
+    "href": "week5-complete-slides.html#assumption-2-constant-variance",
+    "title": "Introduction to Linear Regression",
+    "section": "Assumption 2: Constant Variance",
+    "text": "Assumption 2: Constant Variance\nHeteroscedasticity: Variance changes across X\nImpact: Standard errors are wrong → p-values misleading\n\n\n\n\n\n\nWarningWhat Heteroskedasticity Tells You\n\n\n\nOften a symptom of model misspecification:\n\nModel fits well for some values (e.g., small counties) but poorly for others (large counties)\nMay indicate missing variables that matter more at certain X values\nAsk: “What’s different about observations with large residuals?”\n\nExample: Population alone predicts income well in rural counties, but large urban counties need additional variables (education, industry) to predict accurately."
+  },
+  {
+    "objectID": "week5-complete-slides.html#heteroskedasticity-visualized",
+    "href": "week5-complete-slides.html#heteroskedasticity-visualized",
+    "title": "Introduction to Linear Regression",
+    "section": "Heteroskedasticity Visualized",
+    "text": "Heteroskedasticity Visualized\n\nKey Insight: Adding the right predictor can fix heteroscedasticity"
+  },
+  {
+    "objectID": "week5-complete-slides.html#formal-test-breusch-pagan",
+    "href": "week5-complete-slides.html#formal-test-breusch-pagan",
+    "title": "Introduction to Linear Regression",
+    "section": "Formal Test: Breusch-Pagan",
+    "text": "Formal Test: Breusch-Pagan\n\n\nCode\nlibrary(lmtest)\n\n\nWarning: package 'lmtest' was built under R version 4.5.2\n\n\nLoading required package: zoo\n\n\nWarning: package 'zoo' was built under R version 4.5.2\n\n\n\nAttaching package: 'zoo'\n\n\nThe following objects are masked from 'package:base':\n\n    as.Date, as.Date.numeric\n\n\nCode\nbptest(model1)\n\n\n\n    studentized Breusch-Pagan test\n\ndata:  model1\nBP = 27.481, df = 1, p-value = 0.0000001587\n\n\nInterpretation:\n\np &gt; 0.05: Constant variance assumption OK\np &lt; 0.05: Evidence of heteroscedasticity\n\nIf detected, solutions:\n\nTransform Y (try log(income))\nRobust standard errors\nAdd missing variables\nAccept it (point predictions still OK for some prediction goals) – hetroscedasticity will affect predcition of the error, not the coefficients."
+  },
+  {
+    "objectID": "week5-complete-slides.html#assumption-normality-of-residuals",
+    "href": "week5-complete-slides.html#assumption-normality-of-residuals",
+    "title": "Introduction to Linear Regression",
+    "section": "Assumption: Normality of Residuals",
+    "text": "Assumption: Normality of Residuals\nWhat we assume: Residuals are normally distributed\nWhy it matters:\n\nLess critical for point predictions (unbiased regardless)\nImportant for confidence intervals and prediction intervals\nNeeded for valid hypothesis tests (t-tests, F-tests)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#assumption-3-no-multicollinearity",
+    "href": "week5-complete-slides.html#assumption-3-no-multicollinearity",
+    "title": "Introduction to Linear Regression",
+    "section": "Assumption 3: No Multicollinearity",
+    "text": "Assumption 3: No Multicollinearity\nFor multiple regression: Predictors shouldn’t be too correlated\n\n\nCode\nlibrary(car)\nvif(model1)  # Variance Inflation Factor\n\n# Rule of thumb: VIF &gt; 10 suggests problems\n# Not relevant with only 1 predictor!\n\n\nWhy it matters: Coefficients become unstable, hard to interpret"
+  },
+  {
+    "objectID": "week5-complete-slides.html#assumption-4-no-influential-outliers",
+    "href": "week5-complete-slides.html#assumption-4-no-influential-outliers",
+    "title": "Introduction to Linear Regression",
+    "section": "Assumption 4: No Influential Outliers",
+    "text": "Assumption 4: No Influential Outliers\nNot all outliers are problems - only those with high leverage AND large residuals\n\n\n\nVisual Diagnostic\n\n\n\n\n\n\n\n\n\n\n\n\nIdentify Influential Points\n\n\n# A tibble: 2 × 4\n  NAME                              total_popE median_incomeE cooks_d\n  &lt;chr&gt;                                  &lt;dbl&gt;          &lt;dbl&gt;   &lt;dbl&gt;\n1 Philadelphia County, Pennsylvania    1593208          57537   5.95 \n2 Allegheny County, Pennsylvania       1245310          72537   0.399\n\n\nInterpretation:\n\nCook’s D &gt; 4/n = potentially influential\nHigh leverage + large residual = pulls regression line"
+  },
+  {
+    "objectID": "week5-complete-slides.html#what-to-do-with-influential-points",
+    "href": "week5-complete-slides.html#what-to-do-with-influential-points",
+    "title": "Introduction to Linear Regression",
+    "section": "What To Do With Influential Points",
+    "text": "What To Do With Influential Points\n\n\n\n\n\n\nTipInvestigation Strategy\n\n\n\n\nInvestigate: Why is this observation unusual? (data error? truly unique?)\nReport: Always note influential observations in your analysis\nSensitivity check: Refit model without them - do conclusions change?\nDon’t automatically remove: They might represent real, important cases\n\nFor policy: An influential county might need special attention, not exclusion!\n\n\n\n\n\n\n\n\nImportantConnection to Algorithmic Bias\n\n\n\nHigh-influence observations in demographic could represent marginalized communities or unique populations. Automatically removing them can erase important populations from analysis and lead to biased policy decisions.\nAlways investigate before removing!"
+  },
+  {
+    "objectID": "week5-complete-slides.html#adding-more-predictors",
+    "href": "week5-complete-slides.html#adding-more-predictors",
+    "title": "Introduction to Linear Regression",
+    "section": "Adding More Predictors",
+    "text": "Adding More Predictors\nMaybe population alone isn’t enough:\n\n\nGetting data from the 2018-2022 5-year ACS\n\n\n\nCall:\nlm(formula = median_incomeE ~ total_popE + percent_collegeE + \n    poverty_rateE, data = pa_data_full)\n\nResiduals:\n   Min     1Q Median     3Q    Max \n-32939  -4473  -1098   3861  27672 \n\nCoefficients:\n                    Estimate  Std. Error t value             Pr(&gt;|t|)    \n(Intercept)      60893.86796  1589.24122  38.316 &lt; 0.0000000000000002 ***\ntotal_popE           0.06657     0.03356   1.984               0.0517 .  \npercent_collegeE     0.04710     0.14916   0.316               0.7532    \npoverty_rateE       -0.36503     0.07749  -4.711             0.000014 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 8610 on 63 degrees of freedom\nMultiple R-squared:  0.5931,    Adjusted R-squared:  0.5738 \nF-statistic: 30.61 on 3 and 63 DF,  p-value: 0.000000000002485"
+  },
+  {
+    "objectID": "week5-complete-slides.html#log-transformations",
+    "href": "week5-complete-slides.html#log-transformations",
+    "title": "Introduction to Linear Regression",
+    "section": "Log Transformations",
+    "text": "Log Transformations\nIf relationship is curved, try transforming:\n\n\nCode\n# Compare linear vs log\nmodel_linear &lt;- lm(median_incomeE ~ total_popE, data = pa_data)\nmodel_log &lt;- lm(median_incomeE ~ log(total_popE), data = pa_data)\n\nsummary(model_log)\n\n\n\nCall:\nlm(formula = median_incomeE ~ log(total_popE), data = pa_data)\n\nResiduals:\n   Min     1Q Median     3Q    Max \n-27231  -5780  -2118   3953  40638 \n\nCoefficients:\n                Estimate Std. Error t value   Pr(&gt;|t|)    \n(Intercept)        -4867      12374  -0.393      0.695    \nlog(total_popE)     6276       1074   5.842 0.00000018 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 10760 on 65 degrees of freedom\nMultiple R-squared:  0.3443,    Adjusted R-squared:  0.3342 \nF-statistic: 34.13 on 1 and 65 DF,  p-value: 0.0000001805\n\n\nCode\n# Check which residual plot looks better\n\n\nInterpretation changes: Log models show percentage relationships"
+  },
+  {
+    "objectID": "week5-complete-slides.html#categorical-variables",
+    "href": "week5-complete-slides.html#categorical-variables",
+    "title": "Introduction to Linear Regression",
+    "section": "Categorical Variables",
+    "text": "Categorical Variables\n\n\nCode\n# Create metro/non-metro indicator\npa_data &lt;- pa_data %&gt;%\n  mutate(metro = ifelse(total_popE &gt; 500000, 1, 0))\n\nmodel3 &lt;- lm(median_incomeE ~ total_popE + metro, data = pa_data)\nsummary(model3)\n\n\n\nCall:\nlm(formula = median_incomeE ~ total_popE + metro, data = pa_data)\n\nResiduals:\n   Min     1Q Median     3Q    Max \n-28825  -6732  -2885   7672  26622 \n\nCoefficients:\n                Estimate   Std. Error t value             Pr(&gt;|t|)    \n(Intercept) 64924.857892  1659.821786  39.116 &lt; 0.0000000000000002 ***\ntotal_popE     -0.005290     0.008047  -0.657             0.513257    \nmetro       29865.529225  7319.309190   4.080             0.000127 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 10610 on 64 degrees of freedom\nMultiple R-squared:  0.3718,    Adjusted R-squared:  0.3522 \nF-statistic: 18.94 on 2 and 64 DF,  p-value: 0.0000003456\n\n\nR creates dummy variables automatically"
+  },
+  {
+    "objectID": "week5-complete-slides.html#summary-the-regression-workflow",
+    "href": "week5-complete-slides.html#summary-the-regression-workflow",
+    "title": "Introduction to Linear Regression",
+    "section": "Summary: The Regression Workflow",
+    "text": "Summary: The Regression Workflow\n\nUnderstand the framework: What’s f? What’s the goal?\nVisualize first: Does a linear model make sense?\nFit the model: Estimate coefficients\nEvaluate performance: Train/test split, cross-validation\nCheck assumptions: Residual plots, VIF, outliers\nImprove if needed: Transformations, more variables\nConsider ethics: Who could be harmed by this model?\n\n\n\nKey Takeaways\nStatistical Learning:\n\nWe’re estimating f(X), the systematic relationship\nParametric methods assume a form (we chose linear)\n\nTwo purposes:\n\nInference: understand relationships\nPrediction: forecast new values\n\nModel evaluation:\n\nIn-sample fit ≠ out-of-sample performance\nBeware overfitting!\n\nDiagnostics matter:\n\nAlways check assumptions\nPlots reveal what R² hides"
+  },
+  {
+    "objectID": "week5-complete-slides.html#the-task",
+    "href": "week5-complete-slides.html#the-task",
+    "title": "Introduction to Linear Regression",
+    "section": "The Task",
+    "text": "The Task\nPredict median home value (B25077_001) for PA counties using any combination of predictors\nBuild the model with lowest 10-fold cross-validated RMSE"
+  },
+  {
+    "objectID": "week5-complete-slides.html#available-predictors",
+    "href": "week5-complete-slides.html#available-predictors",
+    "title": "Introduction to Linear Regression",
+    "section": "Available Predictors",
+    "text": "Available Predictors\n\n\nCode\nchallenge_data &lt;- get_acs(\n  geography = \"county\",\n  state = \"PA\",\n  variables = c(\n    home_value = \"B25077_001\",      # YOUR TARGET\n    total_pop = \"B01003_001\",       # Total population\n    median_income = \"B19013_001\",   # Median household income\n    median_age = \"B01002_001\",      # Median age\n    percent_college = \"B15003_022\", # Bachelor's degree or higher\n    median_rent = \"B25058_001\",     # Median rent\n    poverty_rate = \"B17001_002\"     # Population in poverty\n  ),\n  year = 2022,\n  output = \"wide\"\n)"
+  },
+  {
+    "objectID": "week5-complete-slides.html#rules-strategy",
+    "href": "week5-complete-slides.html#rules-strategy",
+    "title": "Introduction to Linear Regression",
+    "section": "Rules & Strategy",
+    "text": "Rules & Strategy\nYou can:\n\nUse any combination of predictors (time permitting, you can fetch more)\nTry log transformations: log(total_popE)\nEngineer new categorical features\nRemove influential outliers (but document which!)\n\nYou must:\n\nUse 10-fold cross-validation to report final RMSE\nDo a full diagnostic check (residual plot, Cook’s D, or Breusch-Pagan)\nBe ready to explain your model in 2 minutes\n\n\n\n\n\n\n\nTipHints\n\n\n\n\nStart simple (one predictor), check diagnostics\nIncome and rent are probably highly correlated (multicollinearity!)\nTry log transformation if relationship looks curved\nDon’t forget to remove NAs: na.omit(challenge_data)"
   }
 ]

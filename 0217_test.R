@@ -1,5 +1,6 @@
 #| echo: false
 #| eval: true
+library(tidycensus)
 
 challenge_data <- get_acs(
   geography = "county",

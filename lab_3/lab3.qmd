@@ -1,0 +1,180 @@
+---
+title: "Philadelphia Housing Model - Technical Appendix"
+author: "Daisy Yuan"
+format: 
+  html:
+    code-fold: show
+    toc: true
+    toc-location: left
+    theme: cosmo
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+**This is exactly where spatial features come in!**
+
+------------------------------------------------------------------------
+
+## Load necessary libraries
+
+```{r}
+library(tidyverse)
+library(sf)
+library(tidycensus)
+library(tigris)
+library(MASS)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(caret)
+library(car)
+library(knitr)
+library(readr)
+library(patchwork)
+```
+
+::: callout-note
+## Today's Goal
+
+By the end of class, you'll build models that: - Incorporate spatial relationships - Account for neighborhood effects\
+- Achieve much better prediction accuracy - Help you understand what drives housing prices
+:::
+
+------------------------------------------------------------------------
+
+## Phase1: Data Preparation
+
+### Step 1: Load and Clean Philadelphia Sales Data
+
+#### Load data
+
+```{r}
+opa_path <- "C:/Users/10133/Desktop/UPENN/MUSA5080_PPA/Portfolio/lab_3/opa_properties_public.geojson"
+opa <- st_read(opa_path, quiet = FALSE)
+```
+
+#### Filter data
+
+```{r}
+# Filter Primary data by basic definition
+opa_filtered <- opa %>%
+  filter(
+    category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"),
+    year(as.Date(sale_date)) %in% c(2023, 2024),
+    mailing_city_state == "PHILADELPHIA PA",
+    !is.na(sale_price),
+    !is.na(total_livable_area) & total_livable_area > 0,
+    !is.na(number_of_bedrooms) & number_of_bedrooms > 0
+  )
+```
+
+#### Clean Price Outliers
+
+```{r}
+# Plot the data to see distribution of sale_price
+ggplot(opa_filtered, aes(x = sale_price)) +
+  geom_histogram(bins = 100, fill = "steelblue", color = "white") +
+  scale_x_log10(labels = scales::dollar) + 
+  labs(title = "Distribution of Sale Price (Log Scale)",
+       x = "Sale Price (log)",
+       y = "Count") +
+  theme_minimal()
+# We found that part of the distribution looks similar to normal distribution
+
+# Check at which threshold the data are the most similar to normal distribution
+thresholds <- c(1000, 5000, 10000, 20000, 40000, 50000)
+
+map_dfr(thresholds, function(t) {
+  d <- opa_filtered %>% filter(sale_price > t) %>% pull(sale_price)
+  tibble(
+    threshold = t,
+    n = length(d),
+    skewness = (mean(log(d)) - median(log(d))) / sd(log(d)),  # Pearson's skewness
+    mean_log = mean(log(d)),
+    sd_log = sd(log(d))
+  )
+})
+# We can see the skewness of threshold 50000 stay the most closely to 0 at 0.0023
+# It's obvious that 50000 makes more sense
+
+# we want to make the least errors in calculating so unit_price matters too
+#opa_filtered <- opa_filtered %>%
+  #mutate(unit_price = sale_price / total_livable_area)
+
+opa_filtered <- opa_filtered %>%
+  filter(sale_price > 50000)
+
+```
+
+**Explanation of outliers identification methodology:**  - We observed a cluster of extremely low sale_price values that are unlikely to represent arm’s length market transactions.
+- We examined the raw and log-transformed sale_price distributions and tested several lower-bound thresholds to assess sensitivity.
+- We selected 50,000 as the cutoff because it removes the most implausible low-price records while preserving the overall distribution shape and a sufficient sample size.
+
+#### Non-market sales
+
+```{r}
+# Market rate and sales value
+ggplot(opa_filtered, aes(x = market_value, y = sale_price)) +
+  geom_point(alpha = 0.2, color = "steelblue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  scale_x_log10(labels = scales::dollar) +
+  scale_y_log10(labels = scales::dollar) +
+  labs(title = "Market Value vs Sale Price",
+       x = "Market Value (log)",
+       y = "Sale Price (log)",
+       caption = "Red line = perfect 1:1 relationship") +
+  theme_minimal()
+
+# Check the ratio distribution
+opa_filtered <- opa_filtered %>%
+  mutate(price_ratio = sale_price / market_value)
+summary(opa_filtered$price_ratio)
+
+# Quantile-based cutoffs
+opa_filtered <- opa_filtered %>%
+  filter(price_ratio >= quantile(price_ratio, 0.01, na.rm = TRUE),
+         price_ratio <= quantile(price_ratio, 0.99, na.rm = TRUE))
+```
+
+**Explanation of non-market rate sales identification methodology:**  - We compared sale_price to market_value and found a strong overall alignment between the two.
+- We examined the price_ratio (sale_price divided by market_value) and identified extreme values, including a maximum around 76, which likely reflects non market transactions or data issues.
+- Because these extremes can distort the distribution, we used quantiles to keep only the statistically dominant range of the data.
+- Based on this inspection, the 0.01 and 0.99 quantiles fall within an acceptable error range, so we filtered observations to this interval.
+
+#### Adjust variables
+
+```{r}
+# Add basic variables
+opa_filtered <- opa_filtered %>%
+  mutate(age = year(as.Date(sale_date)) - as.numeric(year_built)) %>%
+  mutate(bb_ratio = number_of_bathrooms / number_of_bedrooms)
+
+# Pick useful variables
+opa_var <- opa_filtered %>%
+  dplyr::select(
+    objectid, geometry, 
+    sale_date, sale_price, market_value, building_code_description_new,
+    total_livable_area, number_of_bedrooms, number_of_bathrooms, bb_ratio,
+    number_stories, garage_spaces, 
+    central_air, quality_grade, view_type,
+    interior_condition, exterior_condition, age, 
+    off_street_open, zip_code, census_tract, zoning, owner_1,
+    category_code_description, fireplaces
+  )
+
+```
+
+### Step 2: Load and Clean Secondary Data
+
+
+## Phase2: Feature Engineering
+
+### Step 1: what
+
+```{r}
+opa_path <- "C:/Users/10133/Desktop/UPENN/MUSA5080_PPA/Portfolio/lab_3/opa_properties_public.geojson"
+opa <- st_read(opa_path, quiet = FALSE)
+```
+
+------------------------------------------------------------------------

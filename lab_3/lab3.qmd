@@ -130,14 +130,16 @@ ggplot(opa_filtered, aes(x = market_value, y = sale_price)) +
 opa_filtered <- opa_filtered %>%
   mutate(price_ratio = sale_price / market_value)
 summary(opa_filtered$price_ratio)
+# The ratios are crazy with the max at 76, which makes no sense
 
 # Quantile-based cutoffs
 opa_filtered <- opa_filtered %>%
-  filter(price_ratio >= quantile(price_ratio, 0.01, na.rm = TRUE),
-         price_ratio <= quantile(price_ratio, 0.99, na.rm = TRUE))
+  filter(price_ratio >= quantile(price_ratio, 0.05, na.rm = TRUE),
+         price_ratio <= quantile(price_ratio, 0.95, na.rm = TRUE))
 ```
 
-**Explanation of non-market rate sales identification methodology:**  - We compared sale_price to market_value and found a strong overall alignment between the two.
+**Explanation of non-market rate sales identification methodology:** 
+- We compared sale_price to market_value and found a strong overall alignment between the two.
 - We examined the price_ratio (sale_price divided by market_value) and identified extreme values, including a maximum around 76, which likely reflects non market transactions or data issues.
 - Because these extremes can distort the distribution, we used quantiles to keep only the statistically dominant range of the data.
 - Based on this inspection, the 0.01 and 0.99 quantiles fall within an acceptable error range, so we filtered observations to this interval.
@@ -167,7 +169,123 @@ opa_var <- opa_filtered %>%
 
 ### Step 2: Load and Clean Secondary Data
 
+#### ACS data
 
+```{r}
+acs_vars <- c(
+  # Median HH Income
+  med_hh_income       = "B19013_001",
+  # Housing Cost Burden (Renter)
+  burden_renter_total = "B25070_001",
+  burden_renter_30    = "B25070_007",  # 30-34.9%
+  burden_renter_35    = "B25070_008",  # 35-39.9%
+  burden_renter_40    = "B25070_009",  # 40-49.9%
+  burden_renter_50    = "B25070_010",  # 50%+
+  # Housing Cost Burden (Owner)
+  burden_owner_total  = "B25091_001",
+  burden_owner_30     = "B25091_008",  # 30-34.9%
+  burden_owner_35     = "B25091_009",  # 35-39.9%
+  burden_owner_40     = "B25091_010",  # 40-49.9%
+  burden_owner_50     = "B25091_011",  # 50%+
+  # Poverty
+  poverty_total       = "B17001_001",
+  poverty_below       = "B17001_002",
+  # Housing Units by Type
+  total_households    = "B11001_001",
+  single_family       = "B25024_002",  # 1-unit detached
+  single_family_att   = "B25024_003",  # 1-unit attached
+  multi_family        = "B25024_004",  # 2 units
+  multi_family_3_4    = "B25024_005",  # 3-4 units
+  multi_family_5_9    = "B25024_006",  # 5-9 units
+  multi_family_10_19  = "B25024_007",  # 10-19 units
+  multi_family_20_49  = "B25024_008",  # 20-49 units
+  multi_family_50plus = "B25024_009",  # 50+ units
+  # Education (25+)
+  edu_total           = "B15003_001",
+  edu_bachelor        = "B15003_022",  # Bachelor's degree
+  edu_master          = "B15003_023",  # Master's degree
+  edu_professional    = "B15003_024",  # Professional degree
+  edu_phd             = "B15003_025",  # Doctorate degree
+  # Commute Mode
+  commute_total       = "B08301_001",
+  commute_car         = "B08301_002",  # Car, truck, van
+  commute_transit     = "B08301_010"   # Public transportation
+)
+
+# Get geometry with just one variable
+acs_geom <- get_acs(
+  geography = "tract",
+  variables = "B19013_001",
+  state     = "PA",
+  county    = "Philadelphia",
+  year      = 2023,
+  survey    = "acs5",
+  geometry  = TRUE
+) %>%
+  dplyr::select(GEOID, geometry)
+
+acs_wide <- get_acs(
+  geography = "tract",
+  variables = acs_vars,
+  state     = "PA",
+  county    = "Philadelphia",
+  year      = 2023,
+  survey    = "acs5",
+  geometry  = FALSE
+) %>%
+  dplyr::select(-moe) %>%
+  pivot_wider(names_from = variable, values_from = estimate) %>%
+  mutate(
+    burden_renter_rate      = (burden_renter_30 + burden_renter_35 + 
+                               burden_renter_40 + burden_renter_50) / burden_renter_total,
+    burden_owner_rate       = (burden_owner_30 + burden_owner_35 + 
+                               burden_owner_40 + burden_owner_50) / burden_owner_total,
+    poverty_rate            = poverty_below / poverty_total,
+    single_family_total     = single_family + single_family_att,
+    multi_family_total      = multi_family + multi_family_3_4 + multi_family_5_9 +
+                              multi_family_10_19 + multi_family_20_49 + multi_family_50plus,
+    edu_bachelors_plus_rate = (edu_bachelor + edu_master + 
+                               edu_professional + edu_phd) / edu_total,
+    commute_car_share       = commute_car / commute_total,
+    commute_transit_share   = commute_transit / commute_total
+  )
+
+# Join together
+acs <- acs_geom %>%
+  left_join(acs_wide, by = "GEOID") %>%
+  st_as_sf()
+
+# Pick those useful
+acs <- acs %>%
+  select(GEOID, NAME, geometry,
+         med_hh_income,
+         burden_renter_rate,
+         burden_owner_rate,
+         poverty_rate,
+         single_family_total,
+         multi_family_total,
+         total_households,
+         edu_bachelors_plus_rate,
+         commute_car_share,
+         commute_transit_share)
+
+```
+
+#### Spatial amentities
+
+```{r}
+
+
+```
+
+#### Check the CRS and join to opa
+
+```{r}
+```
+
+
+```{r}
+```
 ## Phase2: Feature Engineering
 
 ### Step 1: what

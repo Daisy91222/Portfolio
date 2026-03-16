@@ -579,5 +579,124 @@
     "title": "Introduction to Linear Regression",
     "section": "Rules & Strategy",
     "text": "Rules & Strategy\nYou can:\n\nUse any combination of predictors (time permitting, you can fetch more)\nTry log transformations: log(total_popE)\nEngineer new categorical features\nRemove influential outliers (but document which!)\n\nYou must:\n\nUse 10-fold cross-validation to report final RMSE\nDo a full diagnostic check (residual plot, Cook’s D, or Breusch-Pagan)\nBe ready to explain your model in 2 minutes\n\n\n\n\n\n\n\nTipHints\n\n\n\n\nStart simple (one predictor), check diagnostics\nIncome and rent are probably highly correlated (multicollinearity!)\nTry log transformation if relationship looks curved\nDon’t forget to remove NAs: na.omit(challenge_data)"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#research-question-accurate-residential-sale-price-prediction",
+    "href": "lab_3/Housing Prediction Pre.html#research-question-accurate-residential-sale-price-prediction",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Research Question: Accurate Residential Sale Price Prediction",
+    "text": "Research Question: Accurate Residential Sale Price Prediction\n\n\n\nBackground: Philadelphia is seeking to improve its Automated Valuation Model for property tax assessment.\nResearch question: How can residential sale prices prediction be more accurate using observable property, neighborhood, and spatial features?\nAnalytical scope: The segment of residential marketing sales.\n\n\n\nResearch Motivation: Better Support for Property Tax Assessment\n\n\n\nData Overview\n\n\n\nData Sources and Study Scope\n\n\n\nSample Definition and Data Cleaning\n\n\n\nKey Visualizations\n\n\n\nSpatial Distribution of Residential Sale Prices\n\n\n\nProperty Features Associated with Sale Price\n\n\n\nNeighborhood Context and Market Value\n\n\n\nModel Comparison\n\n\n\nLayered Modeling Strategy\n\n\n\nComparative Model Performance\n\n\n\nMain Findings\n\n\n\nFinal Model Accuracy\n\n\n\nMost Influential Predictors\n\n\n\nAreas of Persistent Prediction Error\n\n\n\nPolicy Recommendations\n\n\n\nRisks and Limitations for OPA\n\n\n\nRecommendations for Strengthening the AVM"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#research-motivation-better-support-for-property-tax-assessment",
+    "href": "lab_3/Housing Prediction Pre.html#research-motivation-better-support-for-property-tax-assessment",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Research Motivation: Better Support for Property Tax Assessment",
+    "text": "Research Motivation: Better Support for Property Tax Assessment"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#data-sources-and-study-scope",
+    "href": "lab_3/Housing Prediction Pre.html#data-sources-and-study-scope",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Data Sources and Study Scope",
+    "text": "Data Sources and Study Scope"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#sample-definition-and-data-cleaning",
+    "href": "lab_3/Housing Prediction Pre.html#sample-definition-and-data-cleaning",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Sample Definition and Data Cleaning",
+    "text": "Sample Definition and Data Cleaning"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#spatial-distribution-of-residential-sale-prices",
+    "href": "lab_3/Housing Prediction Pre.html#spatial-distribution-of-residential-sale-prices",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Spatial Distribution of Residential Sale Prices",
+    "text": "Spatial Distribution of Residential Sale Prices"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#property-features-associated-with-sale-price",
+    "href": "lab_3/Housing Prediction Pre.html#property-features-associated-with-sale-price",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Property Features Associated with Sale Price",
+    "text": "Property Features Associated with Sale Price"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#neighborhood-context-and-market-value",
+    "href": "lab_3/Housing Prediction Pre.html#neighborhood-context-and-market-value",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Neighborhood Context and Market Value",
+    "text": "Neighborhood Context and Market Value"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#layered-modeling-strategy",
+    "href": "lab_3/Housing Prediction Pre.html#layered-modeling-strategy",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Layered Modeling Strategy",
+    "text": "Layered Modeling Strategy"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#comparative-model-performance",
+    "href": "lab_3/Housing Prediction Pre.html#comparative-model-performance",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Comparative Model Performance",
+    "text": "Comparative Model Performance"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#final-model-accuracy",
+    "href": "lab_3/Housing Prediction Pre.html#final-model-accuracy",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Final Model Accuracy",
+    "text": "Final Model Accuracy"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#most-influential-predictors",
+    "href": "lab_3/Housing Prediction Pre.html#most-influential-predictors",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Most Influential Predictors",
+    "text": "Most Influential Predictors"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#areas-of-persistent-prediction-error",
+    "href": "lab_3/Housing Prediction Pre.html#areas-of-persistent-prediction-error",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Areas of Persistent Prediction Error",
+    "text": "Areas of Persistent Prediction Error"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#risks-and-limitations-for-opa",
+    "href": "lab_3/Housing Prediction Pre.html#risks-and-limitations-for-opa",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Risks and Limitations for OPA",
+    "text": "Risks and Limitations for OPA"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#recommendations-for-strengthening-the-avm",
+    "href": "lab_3/Housing Prediction Pre.html#recommendations-for-strengthening-the-avm",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Recommendations for Strengthening the AVM",
+    "text": "Recommendations for Strengthening the AVM"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#research-question",
+    "href": "lab_3/Housing Prediction Pre.html#research-question",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Research Question",
+    "text": "Research Question\n\nBackground: Philadelphia is seeking to improve its Automated Valuation Model for property tax assessment.\nResearch question: How can residential sale prices prediction be more accurate using observable property, neighborhood, and spatial features?\nAnalytical scope: The segment of residential marketing sales.\n\n:::"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#research-motivation",
+    "href": "lab_3/Housing Prediction Pre.html#research-motivation",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Research Motivation",
+    "text": "Research Motivation"
+  },
+  {
+    "objectID": "lab_3/Housing Prediction Pre.html#research-question-motivation-1",
+    "href": "lab_3/Housing Prediction Pre.html#research-question-motivation-1",
+    "title": "Philadelphia Housing Price Prediction",
+    "section": "Research Question & Motivation",
+    "text": "Research Question & Motivation\n\n\nResearch Question\n\nBackground: Philadelphia is seeking to improve its Automated Valuation Model for property tax assessment.\nResearch question: How can residential sale prices prediction be more accurate using observable property, neighborhood, and spatial features?\nAnalytical scope: The segment of residential marketing sales.\n\n\nMotivation\n\n内容1\n内容2\n内容3"
   }
 ]

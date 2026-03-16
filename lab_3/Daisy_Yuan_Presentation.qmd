@@ -51,7 +51,7 @@ cv_m7 <- readRDS("data/cv_m7.rds")
 ### Research Question
 
 - Background: Philadelphia is seeking to improve its **Automated Valuation Model**.
-- Research question: How can residential sale prices prediction be **more accurate**?
+- Research question: How can residential sale prices prediction be **more accurate** spagial and demographic?
 - Analytical scope: The segment of residential **marketing** sales.
 :::
 
@@ -113,30 +113,39 @@ cv_m7 <- readRDS("data/cv_m7.rds")
 
 ---
 
-## Sample Definition and Data Cleaning
+## Data Source & Cleaning
+
+**Source:** OPA Properties Public Dataset — 2023–2024 Residential Sales, Philadelphia
+
+<br>
 
 :::: {.columns}
-::: {.column width="50%"}
-### Sample Definition
 
-- Property type: Single family & multi-family
-- Sale years: 2023–2024
+::: {.column width="33%"}
+**🗂 Filter 1: Property Type**
+
+- Single Family
+- Multi Family
+:::
+
+::: {.column width="33%"}
+**🚫 Filter 2: Implausible Values**
+
 - Sale price: > $50,000
 - Living area: > 0 sq ft
 - Bedrooms: > 0
-- State: Pennsylvania only
-- Log-transformed sale price as outcome variable
+- State: PA only
 :::
 
-::: {.column width="50%"}
-### Data Cleaning
+::: {.column width="33%"}
+**❓ Filter 3: Missing Values**
 
-- Removed records with missing or empty geometry
-- Dropped missing values in key variables
-- Filtered invalid coordinates
-- Joined census tract data via spatial join
-- Grouped sparse neighborhoods (n < 10) for cross-validation stability
+- Sale price
+- Living area
+- Bedrooms & bathrooms
+- All model variables
 :::
+
 ::::
 
 ---
@@ -208,20 +217,10 @@ ggplot(model_df_cv, aes(x = med_inc, y = log_sale_price)) +
 
 # Model Comparison {visibility="hidden"}
 
-## Layered Modeling Strategy
-
-| Layer | Variables Added |
-|-------|----------------|
-| M3: Structure + Age | Living area, bedrooms, bathrooms, age |
-| M4: + Census | Median income, poverty, education, transit share |
-| M5b: + Spatial | Transit access, trees, school distance, dist. to CBD |
-| M7: + Neighborhood FE | Neighborhood fixed effects |
-
-*Each layer adds more information about where a home is and who lives nearby.*
-
----
 
 ## Comparative Model Performance
+
+### Model Performance Improves with Each Layer
 
 ```{r}
 #| eval: true
@@ -242,6 +241,10 @@ data.frame(
 ) %>%
   kable(digits = 4, caption = "10-Fold Cross-Validation Results")
 ```
+
+::: {.callout-note}
+Each model layer reduces prediction error. Neighborhood fixed effects (M7) achieves the best performance with RMSE = 0.422 and R² = 0.622, confirming that location is the strongest driver of Philadelphia housing prices.
+:::
 
 ---
 

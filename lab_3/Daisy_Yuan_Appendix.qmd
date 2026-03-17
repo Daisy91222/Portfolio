@@ -168,6 +168,7 @@ data.frame(
 ```{r acs-data}
 #| message: false
 #| warning: false
+#| output: false
 
 # Define census variables of interest
 variables <- c(
@@ -1136,6 +1137,11 @@ cd_m7
 
 ## Save Objects for Slides
 ```{r save-rds}
+#| echo: false
+#| output: false
+#| message: false
+#| warning: false
+
 # -----------------------------------------------------------
 # Data objects
 # -----------------------------------------------------------

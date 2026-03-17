@@ -1,0 +1,534 @@
+---
+title: "Philadelphia Housing Price Prediction"
+subtitle: "A Predictive Modeling Framework to Support Property Tax Assessment"
+author: "Daisy, Liz, Johnny, Parker"
+date: "March 17, 2026"
+project:
+  type: default
+format:
+  revealjs:
+    theme: simple
+    slide-number: true
+    slide-level: 2
+    chalkboard: true
+    code-line-numbers: true
+    incremental: false
+    smaller: true
+    scrollable: true
+---
+
+```{r setup}
+#| echo: false
+#| output: false
+#| message: false
+#| warning: false
+
+library(sf)
+library(tidyverse)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(caret)
+library(knitr)
+library(modelsummary)
+library(broom)
+library(ggtext)
+
+acs_data <- readRDS("data/acs_data.rds")
+model_df_fe <- readRDS("data/model_df_cv.rds")
+
+phl_props_filtered <- readRDS("data/phl_props_filtered.rds")
+phl_nhoods         <- readRDS("data/phl_nhoods.rds")
+model_df_cv        <- readRDS("data/model_df_cv.rds")
+cv_m3              <- readRDS("data/cv_m3.rds")
+cv_m4              <- readRDS("data/cv_m4.rds")
+cv_m5b             <- readRDS("data/cv_m5b.rds")
+cv_m7              <- readRDS("data/cv_m7.rds")
+m3                 <- readRDS("data/m3.rds")
+m4                 <- readRDS("data/m4.rds")
+m5b                <- readRDS("data/m5b.rds")
+m7                 <- readRDS("data/m7.rds")
+```
+
+
+## Research Question & Motivation
+
+:::: {.columns}
+::: {.column width="50%"}
+### Research Question
+
+- Background: Philadelphia is seeking to improve its *Automated Valuation Model*.
+- Research question: How can residential sale prices prediction be *more accurate* spagial and demographic?
+- Analytical scope: The segment of residential *marketing* sales.
+:::
+
+::: {.column width="50%"}
+### Motivation
+
+- Property tax assessment depends on *credible estimates* of market value.
+- Inaccurate valuation can lead to *unequal policy*
+- Better prediction help *strengthen AVM*
+:::
+::::
+
+---
+
+## Data Sources
+
+:::: {.columns}
+::: {.column width="33%"}
+
+### Property Data
+
+- Residential sales records
+- Sale price
+- Interior area
+- Bedrooms / bathrooms
+- Year built
+- Property type
+:::
+
+::: {.column width="33%"}
+
+### Neighborhood Data
+
+- ACS census variables
+- Median income
+- Poverty
+- Education
+- Demographic structure
+:::
+
+::: {.column width="33%"}
+
+### Spatial Data
+
+- Transit access
+- Park proximity
+- Distance-based accessibility
+- Other city or amenity measures
+:::
+::::
+
+*Together, these sources capture property characteristics, neighborhood market conditions, and their location information.*
+
+---
+
+## Data Source & Cleaning
+
+Source: OPA Properties Public Dataset - 2023-2024 Residential Sales, Philadelphia
+
+<br>
+
+:::: {.columns}
+
+::: {.column width="33%"}
+*Filter 1: Basic Info*
+
+- Residential: Single Family & Multi Family
+- Years: sales in 2023 & 2024
+- State: PA only
+:::
+
+::: {.column width="33%"}
+*Filter 2: Implausible Values*
+
+- Living area: > 0 sq ft
+- Bedrooms: > 0
+- *Sale price: > $50,000*
+:::
+
+::: {.column width="33%"}
+*Filter 3: Missing Values*
+
+- Sale price
+- Living area
+- Bedrooms & bathrooms
+- All model variables
+:::
+
+::::
+
+*23372 residential sales across Philadelphia, 2023-2024.*
+
+---
+
+## Spatial Distribution of Residential Sale Prices
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+phl_props_filtered <- readRDS("data/phl_props_filtered.rds")
+phl_nhoods         <- readRDS("data/phl_nhoods.rds")
+
+ggplot() +
+  geom_sf(data = phl_nhoods, fill = "grey95", color = "white", linewidth = 0.3) +
+  geom_sf(data = phl_props_filtered, aes(color = log_sale_price), size = 0.001, alpha = 0.6) +
+  scale_color_viridis_c(option = "mako", name = "Log Sale\nPrice", direction = -1) +
+  annotate("text",
+           x = 2748000, y = 225000,
+           label = "High-price zones:\nCenter City & Chestnut Hill",
+           color = "#0d0887", size = 2.8, hjust = 1, vjust = 0, lineheight = 1.5,
+           fontface = "bold") +
+  annotate("text",
+           x = 2748000, y = 214000,
+           label = "Low-price zone:\nNorth & Northeast Philadelphia",
+           color = "#a8e6cf", size = 2.8, hjust = 1, vjust = 0, lineheight = 1.5,
+           fontface = "bold") +
+  theme_void() +
+  theme(
+    plot.title      = element_text(size = 14, face = "bold"),
+    legend.title    = element_text(size = 10),
+    legend.text     = element_text(size = 9),
+    plot.background = element_rect(fill = "white", color = NA)
+  ) +
+  labs(title = "Residential Sale Prices Exhibit Strong Spatial Clustering",
+       subtitle = "Residential Sale Prices Across Philadelphia (2023-2024)")
+```
+
+---
+
+## Properties Sold by Census Tract
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+prop_summary <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  group_by(GEOID) %>%
+  summarise(
+    mean_price   = mean(sale_price, na.rm = TRUE),
+    n_properties = n()
+  )
+
+tract_analysis <- acs_data %>%
+  left_join(prop_summary, by = "GEOID")
+
+ggplot(tract_analysis) +
+  geom_sf(aes(fill = n_properties)) +
+  scale_fill_viridis_c(option = "mako", name = "Number of\nProperties", direction = -1) +
+  theme_void() +
+  theme(
+    plot.title      = element_text(size = 14, face = "bold"),
+    legend.title    = element_text(size = 10),
+    legend.text     = element_text(size = 9),
+    plot.background = element_rect(fill = "white", color = NA)
+  ) +
+  labs(
+    title    = "Properties Sold by Census Tract",
+    subtitle = "2023-2024 Residential Sales, Philadelphia"
+  )
+```
+
+Key takeaways:
+
+- Sales are unevenly distributed across census tracts, with market activity concentrated in a limited number of neighborhoods and much thinner transaction coverage in others.
+
+## Spatial Autocorrelation of Sale Prices
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(spdep)
+phl_props_filtered <- phl_props_filtered %>%
+  filter(!st_is_empty(geometry))
+
+# Build spatial weights matrix directly from sf object
+lw <- nb2listw(knn2nb(knearneigh(phl_props_filtered, k = 5)), style = "W")
+
+# Global Moran's I
+moran_global <- moran.test(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
+
+# Local Moran's I (LISA)
+lisa <- localmoran(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
+
+# Classify LISA clusters
+m <- mean(phl_props_filtered$log_sale_price)
+phl_props_filtered <- phl_props_filtered %>%
+  mutate(
+    local_I      = lisa[, "Ii"],
+    local_pval   = lisa[, "Pr(z != E(Ii))"],
+    lag_logprice = lag.listw(lw, log_sale_price),
+    lisa_cluster = case_when(
+      local_pval < 0.05 & log_sale_price >  m & lag_logprice >  mean(lag_logprice) ~ "High-High",
+      local_pval < 0.05 & log_sale_price <  m & lag_logprice <  mean(lag_logprice) ~ "Low-Low",
+      local_pval < 0.05 & log_sale_price >  m & lag_logprice <= mean(lag_logprice) ~ "High-Low",
+      local_pval < 0.05 & log_sale_price <= m & lag_logprice >  mean(lag_logprice) ~ "Low-High",
+      TRUE ~ "Not Significant"
+    )
+  )
+
+# LISA map
+lisa_map <- ggplot(phl_props_filtered) +
+  geom_sf(aes(color = lisa_cluster), size = 0.4, alpha = 0.8) +
+  scale_color_manual(
+    values = c(
+      "High-High"       = "#d73027",
+      "Low-Low"         = "#4575b4",
+      "High-Low"        = "#fc8d59",
+      "Low-High"        = "#91bfdb",
+      "Not Significant" = "#d9d9d9"
+    ),
+    name = "LISA Cluster"
+  ) +
+  labs(
+    title = "Similar-Priced Properties Cluster Together Across Philadelphia",
+    subtitle = paste0("Moran's I = ", round(moran_global$estimate[1], 3), ", p < 0.001")
+  ) +
+  theme_void() +
+  theme(
+    plot.title      = element_text(size = 12, face = "bold"),
+    plot.subtitle   = element_text(size = 10),
+    plot.caption    = element_markdown(size = 8, lineheight = 1.5), 
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+lisa_map
+```
+
+Key takeaways:
+
+<p style="font-size:0.8em; line-height:1.6;">
+*<span style='color:#d73027'>High-High</span>* clusters concentrate in *<span style='color:#d73027'>Center City and Chestnut Hill</span>*, with smaller clusters in Far Northeast, around UPenn, and the far southern tip.<br>
+*<span style='color:#4575b4'>Low-Low</span>* clusters dominate *<span style='color:#4575b4'>North and West Philadelphia</span>*.<br>
+The <span style='color:#999999'>absence of significant autocorrelation at the boundary</span> suggests an abrupt spatial discontinuity.
+
+---
+
+## Model Performance Improves with Each Layer
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(kableExtra)
+
+data.frame(
+  Model = c(
+    "M3: Structural Only",
+    "M4: + Census",
+    "M5b: + Spatial",
+    "M7: + Neighborhood FE"
+  ),
+  RMSE_log = c(
+    cv_m3$results$RMSE,
+    cv_m4$results$RMSE,
+    cv_m5b$results$RMSE,
+    cv_m7$results$RMSE
+  ),
+  Approx_Percent_Error = 100 * (exp(c(
+    cv_m3$results$RMSE,
+    cv_m4$results$RMSE,
+    cv_m5b$results$RMSE,
+    cv_m7$results$RMSE
+  )) - 1),
+  MAE_log = c(
+    cv_m3$results$MAE,
+    cv_m4$results$MAE,
+    cv_m5b$results$MAE,
+    cv_m7$results$MAE
+  ),
+  Rsquared = c(
+    cv_m3$results$Rsquared,
+    cv_m4$results$Rsquared,
+    cv_m5b$results$Rsquared,
+    cv_m7$results$Rsquared
+  )
+) %>%
+  arrange(RMSE_log) %>%
+  kable(
+    digits    = c(0, 4, 1, 4, 4),
+    caption   = "10-Fold Cross-Validation Results",
+    col.names = c("Model", "RMSE (log)", "Approx. Error (%)", "MAE (log)", "R-squared")
+  ) %>%
+  kable_styling(
+    font_size        = 16,
+    full_width       = FALSE,
+    bootstrap_options = c("striped", "hover")
+  ) %>%
+  row_spec(1, bold = TRUE, background = "#e8f4f8")  # highlight the best model
+```
+
+Bottom line: Model performance improves at each stage, with the largest gain from adding *neighborhood context*. The final model with neighborhood fixed effects performs best, though prediction error remains meaningful.
+
+
+## Most Influential Predictors
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(broom)
+
+tidy(m7) %>%
+  filter(
+    !str_detect(term, "neighborhood|Intercept"),
+    p.value < 0.05
+  ) %>%
+  mutate(
+    term = case_when(
+      term == "log_area"                               ~ "Living Area (log)",
+      term == "number_of_bedrooms"                     ~ "Bedrooms",
+      term == "number_of_bathrooms"                    ~ "Bathrooms",
+      term == "age_c"                                  ~ "Age",
+      term == "I(age_c^2)"                             ~ "Age-squared",
+      term == "med_inc"                                ~ "Median Income",
+      term == "poverty_rate"                           ~ "Poverty Rate",
+      term == "transit_share"                          ~ "Transit Commute Share",
+      term == "edu_ba_share"                           ~ "BA+ Education Share",
+      term == "burden_renter30_share"                  ~ "Renter Cost Burden",
+      term == "transit_500ft"                          ~ "Transit Stops (500ft)",
+      term == "n_trees_500ft"                          ~ "Street Trees (500ft)",
+      term == "school_knn_3"                           ~ "Distance to Schools",
+      term == "dist_core_mi"                           ~ "Distance to Center City",
+      term == "sale_year2024"                          ~ "Sale Year 2024",
+      term == "category_code_descriptionSINGLE FAMILY" ~ "Single Family",
+      TRUE ~ term
+    ),
+    direction  = if_else(estimate > 0, "Positive", "Negative"),
+    term_label = if_else(
+      term %in% c("Bathrooms", "BA+ Education Share",
+                  "Poverty Rate", "Distance to Center City"),
+      paste0("*", term, "*"),
+      term
+    )
+  ) %>%
+  arrange(desc(abs(estimate))) %>%
+  ggplot(aes(x = reorder(term_label, abs(estimate)), y = estimate, fill = direction)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = estimate - 1.96 * std.error,
+                    ymax = estimate + 1.96 * std.error),
+                width = 0.3, color = "grey40") +
+  scale_fill_manual(values = c("Positive" = "#d73027", "Negative" = "#4575b4")) +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    plot.title      = element_text(size = 13, face = "bold"),
+    plot.background = element_rect(fill = "white", color = NA),
+    legend.title    = element_blank(),
+    axis.text.y     = element_markdown()  # enables bold via *
+  ) +
+  labs(
+    title = "Most Influential Predictors in M7",
+    x     = NULL,
+    y     = "Coefficient Estimate (log scale)"
+  )
+```
+
+Key Takeaways:
+
+- Living area is the strongest single predictor
+
+- Socioeconomics outweigh amenities, confirming that *who lives nearby* matters more than *what's nearby*.
+
+- Bathrooms signal overall quality.
+
+
+## Final Model Data Errors
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(cv_m7$pred, aes(x = obs, y = pred)) +
+  geom_ribbon(aes(ymin = obs - 0.3, ymax = obs + 0.3),
+              fill = "gray", alpha = 0.15) +
+  geom_point(alpha = 0.3, size = 0.5, color = "steelblue") +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  annotate("text", x = 13.5, y = 15,
+         label = "+/- 0.3 log units (~35%)", 
+         color = "gray", size = 4, hjust = 0, vjust = 0, fontface = "bold") +
+  theme_minimal() +
+  labs(
+    title = "Predicted vs. Actual Log Sale Price (M7, 10-fold CV)",
+    x     = "Actual Log Sale Price",
+    y     = "Predicted Log Sale Price"
+  )
+```
+
+::: {.callout-note}
+M7 predicts mid-range prices well, but systematically *overestimates low-price properties* and struggles with *luxury outliers*: consistent with limited training data at the extremes.
+:::
+
+## Final Model Spatial Errors
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+# Load necessary data
+model_df_fe <- model_df_fe %>%
+  mutate(
+    fitted_m7    = fitted(m7),
+    residuals_m7 = residuals(m7),
+    error        = exp(log_sale_price) - exp(fitted_m7)
+  )
+
+resid_sf <- phl_props_filtered %>%
+  left_join(
+    dplyr::select(model_df_fe, pin, residuals_m7, error),
+    by = "pin"
+  ) %>%
+  filter(!is.na(residuals_m7))
+
+# Convert log residuals to dollar scale for interpretability
+resid_sf <- resid_sf %>%
+  mutate(error = exp(log_sale_price) - exp(log_sale_price - residuals_m7))
+
+ggplot() +
+  geom_sf(data = phl_nhoods, fill = "grey95", color = "white", linewidth = 0.3) +
+  geom_sf(data = resid_sf, aes(color = residuals_m7), size = 0.4, alpha = 0.7) +
+  scale_color_gradient2(
+    low      = "#4575b4",
+    mid      = "white",
+    high     = "#d73027",
+    midpoint = 0,
+    name     = "Residual\n(log scale)"
+  ) +
+  theme_void() +
+  theme(
+    plot.title      = element_text(size = 13, face = "bold"),
+    plot.subtitle   = element_text(size = 10),
+    plot.background = element_rect(fill = "white", color = NA)
+  ) +
+  labs(
+    title    = "Spatial Distribution of Prediction Errors (M7)",
+    subtitle = "Red = over-predicted, Blue = under-predicted"
+  )
+```
+
+The residuals from m7 are relatively dispersed rather than forming large, continuous clusters, which suggests that the final model captures much of the broad spatial structure in Philadelphia housing market. 
+At the same time, some localized market variation is still not fully explained.
+
+
+## Summary
+
+**Model Accuracy** RMSE = 0.422 (log scale), R-squared = 0.627 (10-fold CV)
+
+**Top Predictors**
+
+- Neighborhood fixed effects (largest single gain: R-squared 0.582 -> 0.627)
+- Living area (coef = 0.538): strongest structural predictor
+- BA+ education share (coef = 0.428) & poverty rate (coef = -0.146): socioeconomics outweigh physical amenities
+
+**Key Recommendations**
+
+- Current AVM likely undervalues transit-accessible and gentrifying properties
+- Sub-models by neighborhood type would improve accuracy in rapidly changing markets
+- Flag high-residual properties for manual review before formal tax assessment
+
+## Thank You
+
+**Data Sources**
+
+- City of Philadelphia, Office of Property Assessment. OPA Properties Public Dataset. https://opendataphilly.org
+- U.S. Census Bureau. American Community Survey 5-Year Estimates, 2023. Via tidycensus R package.
+- SEPTA. Transit Stops, Spring 2025. OpenDataPhilly.
+- City of Philadelphia, Parks & Recreation. Street Tree Inventory, 2025. OpenDataPhilly.
+- School District of Philadelphia. Schools Dataset. OpenDataPhilly.
+- City of Philadelphia. Neighborhood Boundaries. OpenDataPhilly.

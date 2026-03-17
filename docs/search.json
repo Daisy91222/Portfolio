@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "MUSA 5080 Portfolio for Daisy",
     "section": "",
-    "text": "This portfolio documents my learning journey in Public Policy Analytics (MUSA 5080).\n\n\nAdvanced spatial analysis and data science for urban planning and public policy.\n\n\n\n\nWeekly Notes: My learning reflections and key concepts\nLabs: Completed assignments and analyses\nFinal Project: Capstone modeling challenge\n\n\n\n\nI am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on both planning concepts and quantification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone\n\n\n\n\nEmail: yuan77@upenn.edu\nGitHub: @Daisy91222"
+    "text": "This portfolio documents my learning journey in Public Policy Analytics (MUSA 5080).\n\n\nAdvanced spatial analysis and data science for urban planning and public policy.\n\n\n\n\nWeekly Notes: My learning reflections and key concepts\nLabs: Completed assignments and analyses\nFinal Project: Capstone modeling challenge\n\n\n\n\nI am a first-year City Planning student in Penn concentrating in urban design and transportation. I am now taking both CPLN and MUSA course that focus on both planning concepts and quantification techniques. Here is where I want to improve my visualization ability and communicating my ideas clearly to everyone\n\n\n\n\nEmail: yuan77@upenn.edu\nGitHub: @Daisy91222\n\n\n\n\n\nTechnical Appendix — Full modeling documentation and code\nPresentation Slides — Key findings and policy recommendations"
   },
   {
     "objectID": "index.html#about-this-course",
@@ -698,5 +698,12 @@
     "title": "Philadelphia Housing Price Prediction",
     "section": "Research Question & Motivation",
     "text": "Research Question & Motivation\n\n\nResearch Question\n\nBackground: Philadelphia is seeking to improve its Automated Valuation Model for property tax assessment.\nResearch question: How can residential sale prices prediction be more accurate using observable property, neighborhood, and spatial features?\nAnalytical scope: The segment of residential marketing sales.\n\n\nMotivation\n\n内容1\n内容2\n内容3"
+  },
+  {
+    "objectID": "index.html#midterm-program-philadelphia-housing-price-prediction",
+    "href": "index.html#midterm-program-philadelphia-housing-price-prediction",
+    "title": "MUSA 5080 Portfolio for Daisy",
+    "section": "",
+    "text": "Technical Appendix — Full modeling documentation and code\nPresentation Slides — Key findings and policy recommendations"
   }
 ]

@@ -1179,4 +1179,22 @@ saveRDS(cd_m7, "data/cd_m7.rds")   # Cook's distance
 cat("All objects saved to data/ folder.\n")
 ```
 
+---
 
+## References
+
+**Data Sources**
+
+- City of Philadelphia, Office of Property Assessment. *OPA Properties Public Dataset*. Retrieved March 2026. https://opendataphilly.org
+- U.S. Census Bureau. *American Community Survey 5-Year Estimates, 2023* (Table B19013, B17001, B15003, B25070, B25091, B08301). Retrieved via `tidycensus` R package.
+- Southeastern Pennsylvania Transportation Authority (SEPTA). *Transit Stops, Spring 2025*. Retrieved from OpenDataPhilly.
+- City of Philadelphia, Parks & Recreation. *Street Tree Inventory, 2025*. Retrieved from OpenDataPhilly.
+- School District of Philadelphia. *Schools Dataset*. Retrieved from OpenDataPhilly.
+- City of Philadelphia. *Neighborhood Boundaries*. Retrieved from OpenDataPhilly.
+
+**Methods**
+
+- Moran, P.A.P. (1950). Notes on continuous stochastic phenomena. *Biometrika*, 37(1/2), 17-23.
+- Bivand, R., Pebesma, E., & Gomez-Rubio, V. (2013). *Applied Spatial Data Analysis with R* (2nd ed.). Springer.
+- Kuhn, M. (2008). Building predictive models in R using the caret package. *Journal of Statistical Software*, 28(5), 1-26.
+- Pebesma, E. (2018). Simple features for R: Standardized support for spatial vector data. *The R Journal*, 10(1), 439-446.

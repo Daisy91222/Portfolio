@@ -27,5 +27,5 @@ I am a first-year City Planning student in Penn concentrating in urban design an
 
 ## Midterm Program: Philadelphia Housing Price Prediction
 
-- [Technical Appendix](lab3/Daisy_Yuan_Appendix.html) — Full modeling documentation and code
-- [Presentation Slides](lab3/Daisy_Yuan_Presentation.html) — Key findings and policy recommendations
+- [Technical Appendix](lab_3/Daisy_Yuan_Appendix.html) — Full modeling documentation and code
+- [Presentation Slides](lab_3/Daisy_Yuan_Presentation.html) — Key findings and policy recommendations

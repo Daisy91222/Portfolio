@@ -6,7 +6,7 @@ project:
     - "lab_0/lab0_template.qmd"
     - "lab_1/lab1_template.qmd"
     - "lab_2/lab2_template.qmd"
-    - "Daisy_Yuan_Appendix.qmd"
+    - "lab_3/Daisy_Yuan_Appendix.qmd"
 
 website:
   title: "Daisy Yuan - CPLN 5920 Portfolio"
@@ -24,9 +24,9 @@ website:
           text: "Lab 2: Spatial Analysis and Visualization"
       - text: Midterm Project
         menu:
-          - href: lab3/Daisy_Yuan_Appendix.html
+          - href: lab_3/Daisy_Yuan_Appendix.html
             text: "Technical Appendix"
-          - href: lab3/Daisy_Yuan_Presentation.html
+          - href: lab_3/Daisy_Yuan_Presentation.html
             text: "Presentation Slides"
 format:
   html:

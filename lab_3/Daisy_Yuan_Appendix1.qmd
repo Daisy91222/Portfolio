@@ -1,0 +1,1169 @@
+---
+title: "Philadelphia Housing Model - Technical Appendix"
+author: "Daisy, Liz, Johnny, Parker"
+date: "March 17, 2026"
+format: 
+  html:
+    code-fold: show
+    toc: true
+    toc-location: left
+    theme: cosmo
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+## Load Necessary Libraries
+```{r libraries}
+#| message: false
+#| warning: false
+
+library(sf)
+library(spdep)
+library(tidyverse)
+library(tidycensus)
+library(tigris)
+library(tmap)
+library(MASS)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(caret)
+library(car)
+library(knitr)
+library(readr)
+library(patchwork)
+library(lubridate)
+library(modelsummary)
+library(broom)
+```
+
+---
+
+## Phase 1: Data Preparation
+
+### Step 1: Load and Clean Philadelphia Sales Data
+
+#### Load Primary Data
+```{r load-data}
+#| message: false
+#| warning: false
+
+opa <- st_read("data/opa_properties_public.geojson", quiet = TRUE)
+```
+
+#### Filter to Residential Sales
+```{r filter-data}
+# Filter to single and multi-family residential sales in 2023-2024
+# Remove records with missing or invalid key variables
+phl_props_filtered <- opa %>%
+  mutate(
+    sale_date = as.Date(sale_date),
+    sale_year = lubridate::year(sale_date)
+  ) %>%
+  filter(
+    category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"),
+    sale_year %in% c(2023, 2024),
+    !is.na(sale_price),
+    !is.na(total_livable_area), total_livable_area > 0,
+    !is.na(number_of_bedrooms), number_of_bedrooms > 0,
+    !is.na(state_code), state_code == "PA"
+  ) %>%
+  mutate(
+    log_sale_price = log(sale_price)
+  )
+
+# Check dimensions after filtering
+cat("Rows after filtering:", nrow(phl_props_filtered), "\n")
+```
+#### Filter outliers
+
+- There are a large number of low-end outliers, so we evaluated different threshold cutoffs to determine where filtering would improve data quality while preserving a meaningful and defensible sample.
+
+```{r}
+# Plot the data to see distribution of sale_price
+ggplot(phl_props_filtered, aes(x = sale_price)) +
+  geom_histogram(bins = 100, fill = "steelblue", color = "white") +
+  scale_x_log10(labels = scales::dollar) + 
+  labs(title = "Distribution of Sale Price (Log Scale)",
+       x = "Sale Price (log)",
+       y = "Count") +
+  theme_minimal()
+# We found that part of the distribution looks similar to normal distribution
+
+# Check at which threshold the data are the most similar to normal distribution
+thresholds <- c(1000, 5000, 10000, 20000, 40000, 50000)
+
+map_dfr(thresholds, function(t) {
+  d <- phl_props_filtered %>% filter(sale_price > t) %>% pull(sale_price)
+  tibble(
+    threshold = t,
+    n = length(d),
+    skewness = (mean(log(d)) - median(log(d))) / sd(log(d)),  # Pearson's skewness
+    mean_log = mean(log(d)),
+    sd_log = sd(log(d))
+  )
+})
+# We can see the skewness of threshold 50000 stay the most closely to 0
+# It's obvious that 50000 makes more sense
+
+phl_props_filtered <- phl_props_filtered %>%
+  filter(sale_price > 50000)
+
+```
+
+
+**Explanation of outlier identification methodology:**
+
+- We observed a cluster of extremely low sale_price values unlikely to represent arm's length market transactions (like 0,1,20,100,etc.).
+- We examined the raw and log-transformed sale_price distributions and tested several lower-bound thresholds to assess sensitivity.
+- We selected \$50,000 as the cutoff because it removes the most implausible low-price records while preserving the overall distribution shape and a sufficient sample size.
+- We retained the high-value observations, as they are consistent with the upper tail of the distribution and do not appear to represent abnormal or implausible transactions.
+
+#### Data Cleaning Summary
+```{r cleaning-summary}
+# Before/after comparison table documenting cleaning decisions
+data.frame(
+  Step = c(
+    "Raw data",
+    "Filter: residential only (single/multi family)",
+    "Filter: 2023-2024 sales",
+    "Filter: sale price > $50,000",
+    "Filter: living area > 0, bedrooms > 0",
+    "Filter: state = PA",
+    "Final analytic sample"
+  ),
+  Rows = c(
+    nrow(opa),
+    nrow(opa %>% filter(category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"))),
+    nrow(opa %>% filter(category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"),
+                        lubridate::year(as.Date(sale_date)) %in% c(2023, 2024))),
+    nrow(opa %>% filter(category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"),
+                        lubridate::year(as.Date(sale_date)) %in% c(2023, 2024),
+                        !is.na(sale_price), sale_price > 50000)),
+    nrow(opa %>% filter(category_code_description %in% c("SINGLE FAMILY", "MULTI FAMILY"),
+                        lubridate::year(as.Date(sale_date)) %in% c(2023, 2024),
+                        !is.na(sale_price), sale_price > 50000,
+                        !is.na(total_livable_area), total_livable_area > 0,
+                        !is.na(number_of_bedrooms), number_of_bedrooms > 0)),
+    nrow(phl_props_filtered %>% filter(state_code == "PA")),
+    nrow(phl_props_filtered)
+  )
+) %>%
+  mutate(Removed = lag(Rows, default = first(Rows)) - Rows) %>%
+  kable(caption = "Data Cleaning Summary: Rows Before and After Each Step")
+```
+
+**Data Cleaning Decisions:**
+
+- **Residential only:** We restricted the sample to single-family and multi-family properties, as they represent typical residential properties.
+- **2023–2024 sales:** We focused on recent sales to ensure it reflects current market conditions.
+- **Sale price > $50,000:** Extremely low sale prices are unlikely to represent arm's length market transactions. After testing multiple thresholds, $50,000 minimizes skewness in the log-transformed distribution while preserving a sufficient sample size.
+- **Living area > 0, bedrooms > 0:** Records with zero or missing values for these structural variables are likely data entry errors and cannot contribute meaningful information to the model.
+- **State = PA:** Restricting to Pennsylvania ensures geographic consistency.
+
+### Step 2: Load Secondary Data
+
+#### ACS Census Data
+```{r acs-data}
+#| message: false
+#| warning: false
+
+# Define census variables of interest
+variables <- c(
+  med_inc              = "B19013_001",  # Median household income
+  burden_renter_total  = "B25070_001",  # Renter cost burden total
+  burden_renter_30     = "B25070_007",  # 30-34.9%
+  burden_renter_35     = "B25070_008",  # 35-39.9%
+  burden_renter_40     = "B25070_009",  # 40-49.9%
+  burden_renter_50     = "B25070_010",  # 50%+
+  burden_owner_total   = "B25091_001",  # Owner cost burden total
+  burden_owner_30      = "B25091_008",  # 30-34.9%
+  burden_owner_35      = "B25091_009",  # 35-39.9%
+  burden_owner_40      = "B25091_010",  # 40-49.9%
+  burden_owner_50      = "B25091_011",  # 50%+
+  poverty_total        = "B17001_001",  # Poverty total
+  poverty_below        = "B17001_002",  # Below poverty line
+  total_households     = "B11001_001",  # Total households
+  single_family        = "B25024_002",  # 1-unit detached
+  single_family_att    = "B25024_003",  # 1-unit attached
+  multi_family         = "B25024_004",  # 2 units
+  multi_family_3_4     = "B25024_005",  # 3-4 units
+  multi_family_5_9     = "B25024_006",  # 5-9 units
+  multi_family_10_19   = "B25024_007",  # 10-19 units
+  multi_family_20_49   = "B25024_008",  # 20-49 units
+  multi_family_50plus  = "B25024_009",  # 50+ units
+  edu_total            = "B15003_001",  # Education total
+  edu_bachelor         = "B15003_022",  # Bachelor's degree
+  edu_master           = "B15003_023",  # Master's degree
+  edu_professional     = "B15003_024",  # Professional degree
+  edu_phd              = "B15003_025",  # Doctorate degree
+  commute_total        = "B08301_001",  # Commute total
+  commute_car          = "B08301_002",  # Car, truck, van
+  commute_transit      = "B08301_010"   # Public transportation
+)
+
+# Pull ACS data at census tract level for Philadelphia County
+acs_data <- get_acs(
+  geography = "tract",
+  variables = variables,
+  state     = "PA",
+  county    = "Philadelphia",
+  year      = 2023,
+  survey    = "acs5",
+  geometry  = TRUE,
+  output    = "wide"
+) %>%
+  st_transform(2272)
+
+# Derive composite rates from raw counts
+acs_data <- acs_data %>%
+  mutate(
+    poverty_rate           = if_else(poverty_totalE > 0, poverty_belowE / poverty_totalE, NA_real_),
+    transit_share          = if_else(commute_totalE > 0, commute_transitE / commute_totalE, NA_real_),
+    edu_ba_share           = if_else(edu_totalE > 0, edu_bachelorE / edu_totalE, NA_real_),
+    burden_renter30_share  = if_else(burden_renter_totalE > 0, burden_renter_30E / burden_renter_totalE, NA_real_)
+  )
+
+cat("Census tracts loaded:", nrow(acs_data), "\n")
+```
+
+#### Spatial Amenity Data
+```{r spatial-data}
+#| message: false
+#| warning: false
+
+# Load SEPTA transit stops
+septa_stops <- st_read("data/Transit_Stops_(Spring_2025).geojson", quiet = TRUE) %>%
+  st_transform(2272)
+
+# Load street tree inventory
+phl_trees <- st_read("data/ppr_tree_inventory_2025.geojson", quiet = TRUE) %>%
+  st_transform(2272)
+
+# Load schools
+schools <- st_read("data/Schools.geojson", quiet = TRUE) %>%
+  st_transform(2272)
+
+# Load neighborhood boundaries
+phl_nhoods <- st_read("data/philadelphia-neighborhoods.geojson", quiet = TRUE) %>%
+  st_transform(2272) %>%
+  transmute(neighborhood = NAME)
+
+# Transform property data to EPSG:2272 (PA State Plane) to match other layers
+phl_props_filtered <- phl_props_filtered %>%
+  st_transform(2272)
+
+# Define Center City reference point (City Hall)
+center_city <- st_sfc(
+  st_point(c(-75.1638889, 39.95225)),
+  crs = 4326
+) %>%
+  st_transform(2272)
+
+cat("Transit stops:", nrow(septa_stops), "\n")
+cat("Trees:", nrow(phl_trees), "\n")
+cat("Schools:", nrow(schools), "\n")
+cat("Neighborhoods:", nrow(phl_nhoods), "\n")
+```
+
+---
+
+## Phase 2: Exploratory Data Analysis
+
+### 1. Distribution of Sale Prices
+```{r eda-price-dist}
+#| message: false
+#| warning: false
+
+# Log-transform sale price to normalize the right-skewed distribution
+phl_props_filtered <- phl_props_filtered %>%
+  mutate(log_sale_price = log(sale_price))
+
+ggplot(phl_props_filtered, aes(x = log_sale_price)) +
+  geom_histogram(
+    bins  = 40,
+    color = "white",
+    fill  = "steelblue"
+  ) +
+  labs(
+    title = "Distribution of Log Sale Prices",
+    x     = "Log Sale Price",
+    y     = "Number of Properties"
+  ) +
+  theme_minimal()
+```
+
+- The log-transformed sale price distribution is much more symmetric than the raw sale price distribution, with reduced right skew and less influence from extreme high-value sales. This supports using log sale price as the modeling outcome because it provides a more stable scale for regression-based prediction. It does not, however, by itself confirm that all model assumptions are satisfied.
+
+### 2. Geographic Distribution of Sale Prices
+```{r eda-geo-map}
+#| message: false
+#| warning: false
+
+# Map log sale prices across Philadelphia to identify spatial patterns
+ggplot(phl_props_filtered) +
+  geom_sf(aes(color = log_sale_price), size = .001) +
+  scale_color_viridis_c(option = "plasma", name = "Log Sale Price") +
+  theme_void() +
+  labs(title = "Geographic Distribution of Sale Prices")
+```
+
+- Sale prices show clear spatial clustering across Philadelphia rather than random geographic variation. This indicates that market value is strongly shaped by location and that property-level characteristics alone are unlikely to explain prices fully. The pattern supports including neighborhood and spatial features in the model.
+
+### 3. Price vs. Structural Features
+```{r eda-structural}
+#| message: false
+#| warning: false
+
+# Scatter plot of sale price vs number of bedrooms
+ggplot(phl_props_filtered,
+       aes(x = number_of_bedrooms, y = sale_price)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  labs(
+    title = "Sale Price vs. Number of Bedrooms",
+    x     = "Number of Bedrooms",
+    y     = "Sale Price ($)"
+  )
+```
+
+- Sale price generally rises with bedroom count at lower and moderate values, but the relationship is noisy and weakens at higher counts. This suggests that bedroom count contains useful structural information but is not sufficient on its own to explain price variation. Other structural and contextual variables are needed to capture the full range of market differences.
+
+### 4. Price vs. Spatial Features
+
+*See Feature Engineering section below for spatial feature construction.*
+
+### 5. Creative Visualization
+
+#### Join Census Data to Properties
+```{r join-census}
+#| message: false
+#| warning: false
+
+# Derive rate-based census variables from raw ACS counts
+acs_small <- acs_data %>%
+  transmute(
+    GEOID,
+    med_inc               = med_incE,
+    poverty_rate          = if_else(poverty_totalE > 0, poverty_belowE / poverty_totalE, NA_real_),
+    transit_share         = if_else(commute_totalE > 0, commute_transitE / commute_totalE, NA_real_),
+    edu_ba_share          = if_else(edu_totalE > 0, edu_bachelorE / edu_totalE, NA_real_),
+    burden_renter30_share = if_else(burden_renter_totalE > 0, burden_renter_30E / burden_renter_totalE, NA_real_)
+  )
+
+# Spatially join census variables to each property via tract intersection
+phl_props_filtered <- st_join(phl_props_filtered, acs_small, left = TRUE)
+
+cat("Census variables joined. Sample size:", nrow(phl_props_filtered), "\n")
+```
+
+```{r Properties Sold by Census Tract}
+#| message: false
+#| warning: false
+
+# Summarize number of properties sold per census tract
+prop_summary <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  group_by(GEOID) %>%
+  summarise(
+    mean_price   = mean(sale_price, na.rm = TRUE),
+    n_properties = n()
+  )
+
+# Join back to census tract geometry for mapping
+tract_analysis <- acs_data %>%
+  left_join(prop_summary, by = "GEOID")
+
+# Map number of properties sold by tract
+ggplot(tract_analysis) +
+  geom_sf(aes(fill = n_properties)) +
+  scale_fill_viridis_c(option = "magma", name = "Number of\nProperties") +
+  theme_void() +
+  labs(
+    title    = "Properties Sold by Census Tract",
+    subtitle = "2023–2024 Residential Sales, Philadelphia"
+  )
+```
+
+- Residential sales are unevenly distributed across census tracts, with some areas contributing many more observations than others. This means the model is estimated from denser market information in some neighborhoods than in others, which may affect how evenly it performs across space. Areas with fewer sales may also be associated with greater prediction uncertainty.
+
+```{r Price-Clusters}
+#| message: false
+#| warning: false
+
+# Build spatial weights matrix using K-nearest neighbors (k=5), row-standardized
+coords <- st_centroid(phl_props_filtered) %>% st_coordinates()
+lw     <- nb2listw(knn2nb(knearneigh(coords, k = 5)), style = "W")
+
+# Global Moran's I test
+moran_global <- moran.test(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
+print(moran_global)
+
+# Moran scatter plot: x = log_sale_price, y = spatially lagged values
+moran.plot(phl_props_filtered$log_sale_price, listw = lw,
+           main = "Moran's I Scatter Plot - log_sale_price",
+           xlab = "log_sale_price", ylab = "Spatially Lagged log_sale_price")
+
+# Local Moran's I (LISA)
+lisa <- localmoran(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
+
+# Append LISA statistics and classify each observation into a cluster type
+m <- mean(phl_props_filtered$log_sale_price)
+phl_props_filtered <- phl_props_filtered %>%
+  mutate(
+    local_I      = lisa[, "Ii"],
+    local_pval   = lisa[, "Pr(z != E(Ii))"],
+    lag_logprice = lag.listw(lw, log_sale_price),
+    lisa_cluster = case_when(
+      local_pval < 0.05 & log_sale_price >  m & lag_logprice >  mean(lag_logprice) ~ "High-High",
+      local_pval < 0.05 & log_sale_price <  m & lag_logprice <  mean(lag_logprice) ~ "Low-Low",
+      local_pval < 0.05 & log_sale_price >  m & lag_logprice <= mean(lag_logprice) ~ "High-Low",
+      local_pval < 0.05 & log_sale_price <= m & lag_logprice >  mean(lag_logprice) ~ "Low-High",
+      TRUE ~ "Not Significant"
+    )
+  )
+
+# Map LISA clusters
+ggplot(phl_props_filtered) +
+  geom_sf(aes(color = lisa_cluster), size = 0.4, alpha = 0.8) +
+  scale_color_manual(
+    values = c("High-High" = "#d73027", "Low-Low" = "#4575b4",
+               "High-Low"  = "#fc8d59", "Low-High" = "#91bfdb",
+               "Not Significant" = "#d9d9d9"),
+    name = "LISA Cluster"
+  ) +
+  labs(title = "LISA Clusters - log_sale_price") +
+  theme_minimal()
+
+```
+
+
+
+---
+
+## Phase 3: Feature Engineering
+
+### Spatial Features
+```{r spatial-features}
+#| message: false
+#| warning: false
+#| echo: true
+#| include: false
+
+# Transform spatial layers to PA State Plane (EPSG:2272) for distance calculations
+septa_stops %>% st_transform(2272)
+phl_trees   %>% st_transform(2272)
+schools     %>% st_transform(2272)
+
+# Define Center City reference point (City Hall)
+center_city %>%
+  st_transform(2272)
+
+# Calculate distance matrix from each property to all schools
+school_dist_matrix <- st_distance(phl_props_filtered, schools) %>%
+  units::drop_units() %>%
+  as.matrix()
+
+# Helper function: mean distance to k nearest neighbors
+get_knn_distance <- function(dist_matrix, k) {
+  apply(dist_matrix, 1, function(x) mean(sort(x)[1:k]))
+}
+
+# Create spatial features for each property
+phl_props_filtered <- phl_props_filtered %>%
+  mutate(
+    # Count of transit stops within 500ft buffer
+    transit_500ft = lengths(st_intersects(st_buffer(geometry, 500), septa_stops)),
+    # Count of street trees within 500ft buffer
+    n_trees_500ft = lengths(st_intersects(st_buffer(geometry, 500), phl_trees)),
+    # Mean distance to 3 nearest schools (ft)
+    school_knn_3  = get_knn_distance(school_dist_matrix, 3),
+    # Distance to Center City in feet and miles
+    dist_core_ft  = as.numeric(st_distance(geometry, center_city)),
+    dist_core_mi  = dist_core_ft / 5280
+  )
+```
+
+### Price vs. Spatial Features
+```{r eda-spatial}
+#| message: false
+#| warning: false
+
+# 2x2 scatter plots of log sale price vs each spatial feature
+p1 <- ggplot(phl_props_filtered, aes(x = transit_500ft, y = log_sale_price)) +
+  geom_point(alpha = 0.2, size = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(title = "Transit Stops within 500ft", x = "Count", y = "Log Sale Price") +
+  theme_minimal()
+
+p2 <- ggplot(phl_props_filtered, aes(x = n_trees_500ft, y = log_sale_price)) +
+  geom_point(alpha = 0.2, size = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(title = "Street Trees within 500ft", x = "Count", y = "Log Sale Price") +
+  theme_minimal()
+
+p3 <- ggplot(phl_props_filtered, aes(x = school_knn_3, y = log_sale_price)) +
+  geom_point(alpha = 0.2, size = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(title = "Mean Distance to 3 Nearest Schools (ft)", x = "Distance (ft)", y = "Log Sale Price") +
+  theme_minimal()
+
+p4 <- ggplot(phl_props_filtered, aes(x = dist_core_mi, y = log_sale_price)) +
+  geom_point(alpha = 0.2, size = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(title = "Distance to Center City (miles)", x = "Distance (miles)", y = "Log Sale Price") +
+  theme_minimal()
+
+(p1 | p2) / (p3 | p4)
+```
+
+**Interpretation:** Properties closer to Center City and with better transit access tend to command higher prices. Street tree density shows a modest positive relationship, while greater distance to schools is associated with lower prices.
+
+**Explanation of spatial feature engineering:**
+
+- `transit_500ft`: counts SEPTA stops within a 500ft buffer around each property, capturing walkable transit access.
+- `n_trees_500ft`: counts street trees within 500ft, used as a proxy for neighborhood greenery and quality.
+- `school_knn_3`: mean distance to the 3 nearest schools in feet, capturing school accessibility.
+- `dist_core_mi`: straight-line distance to Center City in miles, capturing urban centrality and accessibility to jobs and amenities.
+
+### Step 2: Prepare Model Data Frame
+```{r model-df}
+#| message: false
+#| warning: false
+
+# Create clean model data frame with all engineered variables
+# Drop geometry for modeling, create age and log area variables
+model_df <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  mutate(
+    sale_year                  = as.factor(sale_year),
+    category_code_description  = as.factor(category_code_description),
+    log_area                   = log(total_livable_area),
+    year_built                 = as.integer(year_built),
+    sale_year_num              = as.integer(as.character(sale_year)),
+    age                        = sale_year_num - year_built,
+    age_c                      = age - mean(age, na.rm = TRUE)  # Mean-centered age
+  ) %>%
+  drop_na(
+    log_sale_price, log_area,
+    number_of_bedrooms, number_of_bathrooms,
+    age_c,
+    med_inc, poverty_rate, transit_share, edu_ba_share, burden_renter30_share,
+    transit_500ft, n_trees_500ft, school_knn_3, dist_core_mi,
+    sale_year, category_code_description
+  )
+
+cat("Final model sample size:", nrow(model_df), "\n")
+cat("Variables in model df:", ncol(model_df), "\n")
+```
+
+```{r eda-income}
+#| message: false
+#| warning: false
+
+# Scatter plot of log sale price vs median household income by census tract
+ggplot(phl_props_filtered, aes(x = med_inc, y = log_sale_price)) +
+  geom_point(alpha = 0.3, size = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  scale_x_continuous(labels = scales::dollar) +
+  theme_minimal() +
+  labs(
+    title    = "Log Sale Price vs. Median Household Income",
+    subtitle = "Each point represents a property, colored by census tract income",
+    x        = "Median Household Income ($)",
+    y        = "Log Sale Price"
+  )
+```
+
+**Explanation of variable construction:**
+
+- `log_area`: log-transformed total livable area to reduce right skew and capture diminishing returns of size.
+- `age_c`: mean-centered age of the property, which allows the intercept to be interpreted at the average age and improves interpretability of polynomial terms.
+- All rows with missing values in key model variables are dropped to ensure a clean, complete dataset for modeling and cross-validation.
+
+### Feature Summary
+```{r feature-summary}
+# Summary table of all engineered features
+data.frame(
+  Feature = c(
+    "transit_500ft",
+    "n_trees_500ft", 
+    "school_knn_3",
+    "dist_core_ft",
+    "dist_core_mi",
+    "med_inc",
+    "poverty_rate",
+    "transit_share",
+    "edu_ba_share",
+    "burden_renter30_share"
+  ),
+  Type = c(
+    "Buffer count",
+    "Buffer count",
+    "kNN distance",
+    "Point distance",
+    "Point distance",
+    "Census",
+    "Census",
+    "Census",
+    "Census",
+    "Census"
+  ),
+  Description = c(
+    "Number of SEPTA stops within 500ft",
+    "Number of street trees within 500ft",
+    "Mean distance to 3 nearest schools (ft)",
+    "Distance to Center City in feet",
+    "Distance to Center City in miles",
+    "Median household income by census tract",
+    "Share of population below poverty line",
+    "Share of commuters using public transit",
+    "Share of adults with bachelor's degree or higher",
+    "Share of renters spending 30%+ of income on housing"
+  ),
+  Justification = c(
+    "Transit access is a key driver of urban property values",
+    "Green infrastructure signals neighborhood quality and investment",
+    "School proximity affects family housing decisions and demand",
+    "Accessibility to jobs and amenities drives urban price premiums",
+    "Same as above, expressed in miles for interpretability",
+    "Neighborhood income level is a strong proxy for housing demand",
+    "Poverty concentration depresses local property values",
+    "Transit-dependent neighborhoods differ systematically in price",
+    "Education level reflects neighborhood socioeconomic character",
+    "Cost burden signals housing affordability pressure in the area"
+  )
+) %>%
+  kable(caption = "Summary of Engineered Features")
+```
+
+---
+
+## Phase 4: Model Building
+
+### Step 1: Structural Models (M1–M3)
+```{r models-structural}
+#| message: false
+#| warning: false
+
+# M1: Living area only — simplest baseline
+m1 <- lm(log_sale_price ~ log_area, data = model_df)
+
+# M2: + bedrooms and bathrooms
+m2 <- lm(
+  log_sale_price ~ log_area + number_of_bedrooms + number_of_bathrooms,
+  data = model_df
+)
+
+# M3: + age (polynomial to capture U-shaped depreciation curve)
+m3 <- lm(
+  log_sale_price ~ log_area + number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2),
+  data = model_df
+)
+
+# Comparison between structural models
+data.frame(
+  Model = c("M1: Area", "M2: Structure", "M3: + Age"),
+  Rsquared = c(summary(m1)$r.squared, summary(m2)$r.squared, summary(m3)$r.squared)
+) %>%
+  arrange(desc(Rsquared)) %>%
+  slice(1) %>%
+  pull(Model)
+
+summary(m3)
+```
+
+- The modeling process begins with core housing attributes, using area, number of bedrooms, number of bathrooms, and housing age as baseline predictors. This specification captures the most direct physical characteristics of a home and shows that sale price is partly determined by the property itself, with an R-squared of 0.363. In other words, housing size, layout, and age already explain part of the variation in sale prices, but their explanatory power remains limited. This also suggests that property-level features alone are not sufficient to account for the substantial price differences observed across Philadelphia neighborhoods.
+
+### Step 2: Add Census and Spatial Features (M4–M5b)
+```{r models-census}
+#| message: false
+#| warning: false
+
+# M4: + census
+m4 <- lm(
+  log_sale_price ~ log_area + number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share,
+  data = model_df
+)
+
+summary(m4)
+```
+
+- The model then incorporates tract-level Census variables, including median income, poverty rate, educational attainment, renter cost burden, and transit commute share. After adding these neighborhood socioeconomic indicators, model fit improves substantially, with R-squared increasing from 0.363 in M3 to 0.512 in M4. This is the first major improvement in the modeling process and indicates that housing prices are shaped not only by the home itself, but also by broader neighborhood conditions. Put differently, two homes with similar physical characteristics may still sell at systematically different prices if they are located in different socioeconomic environments.
+
+
+```{r models-spatial}
+#| message: false
+#| warning: false
+# M5: + spatial features
+m5 <- lm(
+  log_sale_price ~ log_area + number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi,
+  data = model_df
+)
+
+# M5b: + sale year and property type as controls
+model_df_2 <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  mutate(
+    sale_year                 = as.factor(sale_year),
+    category_code_description = as.factor(category_code_description),
+    log_area                  = log(total_livable_area),
+    year_built                = as.integer(year_built),
+    sale_year_num             = as.integer(as.character(sale_year)),
+    age                       = sale_year_num - year_built,
+    age_c                     = age - mean(age, na.rm = TRUE)
+  ) %>%
+  drop_na(
+    log_sale_price, log_area,
+    number_of_bedrooms, number_of_bathrooms,
+    age_c,
+    med_inc, poverty_rate, transit_share, edu_ba_share, burden_renter30_share,
+    transit_500ft, n_trees_500ft, school_knn_3, dist_core_mi,
+    sale_year, category_code_description
+  )
+
+m5b <- lm(
+  log_sale_price ~ log_area + number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi +
+    sale_year + category_code_description,
+  data = model_df_2
+)
+
+# Compare M1 through M5
+data.frame(
+  Model = c("M5: + Spatial", "M5b: + Year/Type"),
+  Rsquared = c(summary(m5)$r.squared, summary(m5b)$r.squared)
+) %>%
+  arrange(desc(Rsquared)) %>%
+  slice(1) %>%
+  pull(Model)
+
+summary(m5b)
+```
+
+- Next, the model adds finer-scale spatial variables, including the number of transit stops within 500 feet, the number of trees within 500 feet, the average distance to the three nearest schools, and distance to Center City. It also includes controls for sale year and property type. With these additions, model fit improves further, with R-squared rising from 0.512 in M4 to 0.582 in M5b. This suggests that local accessibility, environmental amenities, centrality, and time-related market differences all contribute additional explanatory power. However, the gain is more moderate than the jump from M3 to M4, which implies that larger-scale neighborhood context remains more important than local spatial conditions in explaining price variation in Philadelphia.
+
+### Step 3: Add Interaction (M6)
+```{r models-interaction}
+#| message: false
+#| warning: false
+
+# M6: + interaction term (living area x education share)
+# Tests whether the value of space varies by neighborhood education level
+m6 <- lm(
+  log_sale_price ~ log_area * edu_ba_share +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi +
+    sale_year + category_code_description,
+  data = model_df
+)
+
+summary(m6)
+```
+
+- The analysis also tests an interaction term in M6 by adding log_area × edu_ba_share. This specification examines whether additional housing space commands a larger price premium in neighborhoods with higher shares of residents holding a bachelor’s degree or above. The improvement is minimal, with in-sample R-squared increasing only from 0.582 in M5b to 0.583 in M6. This suggests that, under the current specification, the return to housing size does not vary strongly enough across education contexts to meaningfully improve model performance. For that reason, the interaction term was not retained as part of the preferred final specification.
+
+### Step 4: Neighborhood Fixed Effects (M7)
+```{r model-fe}
+#| message: false
+#| warning: false
+
+# Load neighborhood boundaries and join to properties
+phl_nhoods <- st_read(
+  "data/philadelphia-neighborhoods.geojson",
+  quiet = TRUE
+) %>%
+  st_transform(2272) %>%
+  transmute(neighborhood = NAME)
+
+phl_props_filtered <- phl_props_filtered %>%
+  st_join(phl_nhoods, join = st_intersects)
+
+# Prepare model data frame with neighborhood variable
+model_df_fe <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  mutate(
+    neighborhood              = as.factor(neighborhood.x),
+    sale_year                 = as.factor(sale_year),
+    category_code_description = as.factor(category_code_description),
+    log_area                  = log(total_livable_area),
+    year_built                = as.integer(year_built),
+    sale_year_num             = as.integer(as.character(sale_year)),
+    age                       = sale_year_num - year_built,
+    age_c                     = age - mean(age, na.rm = TRUE)
+  ) %>%
+  drop_na(
+    log_sale_price, log_area,
+    number_of_bedrooms, number_of_bathrooms,
+    age_c,
+    med_inc, poverty_rate, transit_share, edu_ba_share, burden_renter30_share,
+    transit_500ft, n_trees_500ft, school_knn_3, dist_core_mi,
+    sale_year, category_code_description, neighborhood
+  )
+
+# M7: + neighborhood fixed effects
+# Each neighborhood gets its own intercept, capturing unmeasured locational qualities
+m7 <- lm(
+  log_sale_price ~ log_area +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi +
+    sale_year + category_code_description +
+    as.factor(neighborhood),
+  data = model_df_fe
+)
+
+summary(m7)
+
+# Improvement comparison: M3, M5b, M6, M7
+modelsummary(
+  list(
+    "M3: Structural Only"             = m3,
+    "M5b: + Census"      = m5b,
+    "M6: + Spatial"     = m6,
+    "M7: + Interactions/FE" = m7
+  ),
+  gof_map = c("nobs", "r.squared", "adj.r.squared")
+)
+```
+
+- Another major improvement appears when neighborhood fixed effects are introduced. Starting from M5b, M7 adds neighborhood fixed effects and raises R-squared to 0.628, with adjusted R-squared reaching 0.625. This result indicates that even after controlling for housing structure, Census-based neighborhood characteristics, and spatial accessibility measures, there is still substantial neighborhood-specific variation that cannot be fully captured by observed variables alone. The fixed effects likely absorb place-based factors such as neighborhood reputation, built environment quality, market perception, historical image, and other locally specific characteristics.
+
+
+**Takeaway:**
+
+Taken together, the results suggest that besides the property structure, their **location, reflecting in both census and fixed effects**, drives Philadelphia housing prices more than physical property characteristics alone.
+
+---
+
+## Phase 5: Model Validation
+
+### Step 1: Prepare Cross-Validation Data Frame
+```{r cv-prep}
+#| message: false
+#| warning: false
+
+# Prepare CV data frame with neighborhood variable
+model_df_cv <- phl_props_filtered %>%
+  st_drop_geometry() %>%
+  mutate(
+    neighborhood               = as.factor(neighborhood),
+    sale_year                  = as.factor(sale_year),
+    category_code_description  = as.factor(category_code_description),
+    log_area                   = log(total_livable_area),
+    year_built                 = as.integer(year_built),
+    sale_year_num              = as.integer(as.character(sale_year)),
+    age                        = sale_year_num - year_built,
+    age_c                      = age - mean(age, na.rm = TRUE)
+  ) %>%
+  drop_na(
+    log_sale_price, log_area,
+    number_of_bedrooms, number_of_bathrooms,
+    age_c,
+    med_inc, poverty_rate, transit_share, edu_ba_share, burden_renter30_share,
+    transit_500ft, n_trees_500ft, school_knn_3, dist_core_mi,
+    sale_year, category_code_description, neighborhood
+  )
+
+# Group sparse neighborhoods (n < 10) to avoid CV errors
+# Neighborhoods with too few observations cause "new levels" error in CV
+model_df_cv <- model_df_cv %>%
+  add_count(neighborhood) %>%
+  mutate(
+    neighborhood_cv = if_else(
+      n < 10,
+      "Small_Neighborhoods",
+      as.character(neighborhood)
+    ),
+    neighborhood_cv = as.factor(neighborhood_cv)
+  )
+
+cat("CV sample size:", nrow(model_df_cv), "\n")
+cat("Neighborhoods after grouping:", n_distinct(model_df_cv$neighborhood_cv), "\n")
+```
+
+### Step 2: Run 10-Fold Cross-Validation
+```{r cv-models}
+#| message: false
+#| warning: false
+
+# Set up 10-fold CV control
+ctrl <- trainControl(
+  method          = "cv",
+  number          = 10,
+  savePredictions = "final"
+)
+
+# M3: Structure + Age
+cv_m3 <- train(
+  log_sale_price ~ log_area +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2),
+  data      = model_df_cv,
+  method    = "lm",
+  trControl = ctrl
+)
+
+# M4: + Census
+cv_m4 <- train(
+  log_sale_price ~ log_area +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share,
+  data      = model_df_cv,
+  method    = "lm",
+  trControl = ctrl
+)
+
+# M5b: + Spatial + Year/Type
+cv_m5b <- train(
+  log_sale_price ~ log_area +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi +
+    sale_year + category_code_description,
+  data      = model_df_cv,
+  method    = "lm",
+  trControl = ctrl
+)
+
+# M7: + Neighborhood Fixed Effects
+cv_m7 <- train(
+  log_sale_price ~ log_area +
+    number_of_bedrooms + number_of_bathrooms +
+    age_c + I(age_c^2) +
+    med_inc + poverty_rate + transit_share + edu_ba_share + burden_renter30_share +
+    transit_500ft + n_trees_500ft + school_knn_3 + dist_core_mi +
+    sale_year + category_code_description +
+    as.factor(neighborhood_cv),
+  data      = model_df_cv,
+  method    = "lm",
+  trControl = ctrl
+)
+```
+
+### Step 3: CV Results Table
+```{r cv-results}
+# Compile cross-validation results for all four models
+data.frame(
+  Model = c(
+    "M3: Structural Only",
+    "M4: + Census",
+    "M5b: + Spatial",
+    "M7: + Interactions/FE"
+  ),
+  RMSE_log = c(
+    cv_m3$results$RMSE,
+    cv_m4$results$RMSE,
+    cv_m5b$results$RMSE,
+    cv_m7$results$RMSE
+  ),
+  Approx_Percent_Error = 100 * (exp(c(
+    cv_m3$results$RMSE,
+    cv_m4$results$RMSE,
+    cv_m5b$results$RMSE,
+    cv_m7$results$RMSE
+  )) - 1),
+  MAE_log = c(
+    cv_m3$results$MAE,
+    cv_m4$results$MAE,
+    cv_m5b$results$MAE,
+    cv_m7$results$MAE
+  ),
+  Rsquared = c(
+    cv_m3$results$Rsquared,
+    cv_m4$results$Rsquared,
+    cv_m5b$results$Rsquared,
+    cv_m7$results$Rsquared
+  )
+) %>%
+  arrange(RMSE_log) %>%
+  kable(
+    digits = c(0, 4, 1, 4),
+    caption = "Model Performance Improves with Each Layer"
+  )
+```
+
+**Interpretation:**
+
+Cross-validation results confirm that each additional layer of features improves out-of-sample prediction. The baseline structural model (M3) yields an RMSE of 0.537, meaning predictions deviate by roughly 54% on the log scale on average. Adding census variables (M4) reduces error to 0.456, and further incorporating spatial features and time controls (M5b) brings it to 0.444. The full model with neighborhood fixed effects (M7) achieves the lowest RMSE of 0.422 and the highest R² of 0.622, confirming that neighborhood identity captures unmeasured locational value that no single measurable feature can fully replicate. All results are based on 10-fold cross-validation, ensuring that performance estimates reflect generalization to unseen data rather than in-sample fit.
+
+### Step 4: Predicted vs. Actual Plot
+```{r cv-plot}
+#| message: false
+#| warning: false
+
+# Visualize predicted vs actual log sale price for best model (M7)
+ggplot(cv_m7$pred, aes(x = obs, y = pred)) +
+  geom_point(alpha = 0.3, size = 0.5, color = "steelblue") +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title    = "Predicted vs. Actual Log Sale Price",
+    subtitle = "M7: Neighborhood Fixed Effects Model, 10-Fold CV",
+    x        = "Actual Log Sale Price",
+    y        = "Predicted Log Sale Price",
+    caption  = "Red dashed line = perfect prediction"
+  )
+```
+
+---
+
+## Phase 6: Model Diagnostics
+
+### Step 1: Add Residuals and Fitted Values
+```{r diagnostics-prep}
+#| message: false
+#| warning: false
+
+# Add residuals and fitted values for all four models
+model_df_cv <- model_df_cv %>%
+  mutate(
+    fitted_m7    = fitted(m7),
+    residuals_m7 = residuals(m7)
+  )
+```
+
+### Step 2: Residuals vs. Fitted Plots
+```{r residual-plots}
+#| message: false
+#| warning: false
+
+# Helper function to create residual vs fitted plot
+make_rp <- function(fitted_col, resid_col, title) {
+  ggplot(model_df_cv, aes(x = .data[[fitted_col]], y = .data[[resid_col]])) +
+    geom_point(alpha = 0.3, size = 0.5, color = "steelblue") +
+    geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+    labs(title = title, x = "Fitted Values", y = "Residuals") +
+    theme_minimal()
+}
+
+rp_m7  <- make_rp("fitted_m7",  "residuals_m7",  "M7: + Neighborhood FE")
+
+rp_m7
+```
+
+### Step 3: Q-Q Plots
+```{r qq-plots}
+#| message: false
+#| warning: false
+
+# Helper function to create Q-Q plot
+make_qq <- function(resid_col, title) {
+  ggplot(model_df_cv, aes(sample = .data[[resid_col]])) +
+    stat_qq(alpha = 0.3, size = 0.5, color = "steelblue") +
+    stat_qq_line(color = "red") +
+    labs(title = title, x = "Theoretical Quantiles", y = "Sample Quantiles") +
+    theme_minimal()
+}
+
+qq_m7  <- make_qq("residuals_m7",  "M7: + Neighborhood FE")
+
+qq_m7
+```
+
+### Step 4: Cook's Distance
+```{r cooks-distance}
+#| message: false
+#| warning: false
+
+# Calculate Cook's distance and leverage for all models
+model_df_cv <- model_df_cv %>%
+  mutate(
+    cd_m7             = cooks.distance(m7),
+    is_influential_m7 = cd_m7 > 4 / nrow(model_df_cv)
+  )
+
+# Helper function to create Cook's distance plot
+make_cd <- function(cd_col, influential_col, title) {
+  ggplot(model_df_cv,
+         aes(x = 1:nrow(model_df_cv), y = .data[[cd_col]])) +
+    geom_point(aes(color = .data[[influential_col]]), size = 0.8) +
+    geom_hline(yintercept = 4 / nrow(model_df_cv),
+               linetype = "dashed", color = "red") +
+    scale_color_manual(values = c("grey60", "red")) +
+    labs(title = title, x = "Observation", y = "Cook's D") +
+    theme_minimal() +
+    theme(legend.position = "none")
+}
+
+cd_m7  <- make_cd("cd_m7",  "is_influential_m7",  "M7: + Neighborhood FE")
+
+cd_m7
+```
+
+```{r}
+{ rp_m7| qq_m7 | cd_m7 }
+```
+
+
+**Interpretation of diagnostics:**
+
+- Residual plots show whether the model captures the linear relationship well. Patterns in residuals suggest remaining non-linearity or heteroscedasticity.
+- Q-Q plots assess normality of residuals. Deviations at the tails are common with large real estate datasets due to luxury properties.
+- Cook's distance identifies influential observations that disproportionately affect model estimates. Points above the threshold (4/n) warrant further inspection.
+
+
+
+---
+
+## Save Objects for Slides
+```{r save-rds}
+# -----------------------------------------------------------
+# Data objects
+# -----------------------------------------------------------
+saveRDS(phl_props_filtered, "data/phl_props_filtered.rds")  # Main property data (includes LISA columns)
+saveRDS(acs_data,           "data/acs_data.rds")             # ACS census tract data
+saveRDS(phl_nhoods,         "data/phl_nhoods.rds")           # Neighborhood boundaries
+
+# -----------------------------------------------------------
+# Model objects
+# -----------------------------------------------------------
+saveRDS(m3,          "data/m3.rds")
+saveRDS(m4,          "data/m4.rds")
+saveRDS(m5b,         "data/m5b.rds")
+saveRDS(m7,          "data/m7.rds")
+saveRDS(model_df,    "data/model_df.rds")
+saveRDS(model_df_cv, "data/model_df_cv.rds")
+
+# -----------------------------------------------------------
+# Cross-validation results
+# -----------------------------------------------------------
+saveRDS(cv_m3,  "data/cv_m3.rds")
+saveRDS(cv_m4,  "data/cv_m4.rds")
+saveRDS(cv_m5b, "data/cv_m5b.rds")
+saveRDS(cv_m7,  "data/cv_m7.rds")
+
+# -----------------------------------------------------------
+# EDA plots (likely to reuse in slides)
+# -----------------------------------------------------------
+saveRDS(p1, "data/p1_transit.rds")    # Transit stops vs log price
+saveRDS(p2, "data/p2_trees.rds")      # Street trees vs log price
+saveRDS(p3, "data/p3_schools.rds")    # School distance vs log price
+saveRDS(p4, "data/p4_distcore.rds")   # Distance to Center City vs log price
+
+# -----------------------------------------------------------
+# Diagnostics plots
+# -----------------------------------------------------------
+saveRDS(rp_m7, "data/rp_m7.rds")   # Residuals vs fitted
+saveRDS(qq_m7, "data/qq_m7.rds")   # Q-Q plot
+saveRDS(cd_m7, "data/cd_m7.rds")   # Cook's distance
+
+cat("All objects saved to data/ folder.\n")
+```
+
+

@@ -19,11 +19,9 @@ editor:
 #| warning: false
 
 library(sf)
-library(spdep)
 library(tidyverse)
 library(tidycensus)
 library(tigris)
-library(tmap)
 library(MASS)
 library(dplyr)
 library(scales)
@@ -36,6 +34,7 @@ library(patchwork)
 library(lubridate)
 library(modelsummary)
 library(broom)
+library(ggtext)
 ```
 
 ---
@@ -49,7 +48,8 @@ library(broom)
 #| message: false
 #| warning: false
 
-opa <- st_read("data/opa_properties_public.geojson", quiet = TRUE)
+opa <- st_read("data/opa_properties_public.geojson", quiet = TRUE)%>%
+  st_transform(2272)
 ```
 
 #### Filter to Residential Sales
@@ -335,6 +335,28 @@ ggplot(phl_props_filtered,
 
 *See Feature Engineering section below for spatial feature construction.*
 
+#### Join Census Data to Properties
+```{r join-census}
+#| message: false
+#| warning: false
+
+# Derive rate-based census variables from raw ACS counts
+acs_small <- acs_data %>%
+  transmute(
+    GEOID,
+    med_inc               = med_incE,
+    poverty_rate          = if_else(poverty_totalE > 0, poverty_belowE / poverty_totalE, NA_real_),
+    transit_share         = if_else(commute_totalE > 0, commute_transitE / commute_totalE, NA_real_),
+    edu_ba_share          = if_else(edu_totalE > 0, edu_bachelorE / edu_totalE, NA_real_),
+    burden_renter30_share = if_else(burden_renter_totalE > 0, burden_renter_30E / burden_renter_totalE, NA_real_)
+  )
+
+# Spatially join census variables to each property via tract intersection
+phl_props_filtered <- st_join(phl_props_filtered, acs_small, left = TRUE)
+
+cat("Census variables joined. Sample size:", nrow(phl_props_filtered), "\n")
+```
+
 ### 5. Creative Visualization
 ```{r Properties Sold by Census Tract}
 #| message: false
@@ -366,27 +388,24 @@ ggplot(tract_analysis) +
 
 - Residential sales are unevenly distributed across census tracts, with some areas contributing many more observations than others. This means the model is estimated from denser market information in some neighborhoods than in others, which may affect how evenly it performs across space. Areas with fewer sales may also be associated with greater prediction uncertainty.
 
-```{r Price Clusters}
+```{r Price-Clusters}
 #| message: false
 #| warning: false
 
-# Build spatial weights matrix using K-nearest neighbors (k=5), row-standardized
-coords <- st_centroid(phl_props_filtered) %>% st_coordinates()
-lw     <- nb2listw(knn2nb(knearneigh(coords, k = 5)), style = "W")
+library(spdep)
+phl_props_filtered <- phl_props_filtered %>%
+  filter(!st_is_empty(geometry))
 
-# Global Moran's I test
+# Build spatial weights matrix directly from sf object
+lw <- nb2listw(knn2nb(knearneigh(phl_props_filtered, k = 5)), style = "W")
+
+# Global Moran's I
 moran_global <- moran.test(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
-print(moran_global)
-
-# Moran scatter plot: x = log_sale_price, y = spatially lagged values
-moran.plot(phl_props_filtered$log_sale_price, listw = lw,
-           main = "Moran's I Scatter Plot - log_sale_price",
-           xlab = "log_sale_price", ylab = "Spatially Lagged log_sale_price")
 
 # Local Moran's I (LISA)
 lisa <- localmoran(phl_props_filtered$log_sale_price, listw = lw, zero.policy = TRUE)
 
-# Append LISA statistics and classify each observation into a cluster type
+# Classify LISA clusters
 m <- mean(phl_props_filtered$log_sale_price)
 phl_props_filtered <- phl_props_filtered %>%
   mutate(
@@ -402,21 +421,33 @@ phl_props_filtered <- phl_props_filtered %>%
     )
   )
 
-# Map LISA clusters
-ggplot(phl_props_filtered) +
+# LISA map
+lisa_map <- ggplot(phl_props_filtered) +
   geom_sf(aes(color = lisa_cluster), size = 0.4, alpha = 0.8) +
   scale_color_manual(
-    values = c("High-High" = "#d73027", "Low-Low" = "#4575b4",
-               "High-Low"  = "#fc8d59", "Low-High" = "#91bfdb",
-               "Not Significant" = "#d9d9d9"),
+    values = c(
+      "High-High"       = "#d73027",
+      "Low-Low"         = "#4575b4",
+      "High-Low"        = "#fc8d59",
+      "Low-High"        = "#91bfdb",
+      "Not Significant" = "#d9d9d9"
+    ),
     name = "LISA Cluster"
   ) +
-  labs(title = "LISA Clusters - log_sale_price") +
-  theme_minimal()
+  labs(
+    title = "Similar-Priced Properties Cluster Together Across Philadelphia",
+    subtitle = paste0("Moran's I = ", round(moran_global$estimate[1], 3), ", p < 0.001")
+  ) +
+  theme_void() +
+  theme(
+    plot.title      = element_text(size = 12, face = "bold"),
+    plot.subtitle   = element_text(size = 10),
+    plot.caption    = element_markdown(size = 8, lineheight = 1.5), 
+    plot.background = element_rect(fill = "white", color = NA)
+  )
 
+lisa_map
 ```
-
-
 
 ---
 
@@ -463,27 +494,7 @@ phl_props_filtered <- phl_props_filtered %>%
   )
 ```
 
-#### Join Census Data to Properties
-```{r join-census}
-#| message: false
-#| warning: false
 
-# Derive rate-based census variables from raw ACS counts
-acs_small <- acs_data %>%
-  transmute(
-    GEOID,
-    med_inc               = med_incE,
-    poverty_rate          = if_else(poverty_totalE > 0, poverty_belowE / poverty_totalE, NA_real_),
-    transit_share         = if_else(commute_totalE > 0, commute_transitE / commute_totalE, NA_real_),
-    edu_ba_share          = if_else(edu_totalE > 0, edu_bachelorE / edu_totalE, NA_real_),
-    burden_renter30_share = if_else(burden_renter_totalE > 0, burden_renter_30E / burden_renter_totalE, NA_real_)
-  )
-
-# Spatially join census variables to each property via tract intersection
-phl_props_filtered <- st_join(phl_props_filtered, acs_small, left = TRUE)
-
-cat("Census variables joined. Sample size:", nrow(phl_props_filtered), "\n")
-```
 
 ### Price vs. Spatial Features
 ```{r eda-spatial}
@@ -794,7 +805,7 @@ phl_props_filtered <- phl_props_filtered %>%
 model_df_fe <- phl_props_filtered %>%
   st_drop_geometry() %>%
   mutate(
-    neighborhood              = as.factor(neighborhood.x),
+    neighborhood              = as.factor(neighborhood),
     sale_year                 = as.factor(sale_year),
     category_code_description = as.factor(category_code_description),
     log_area                  = log(total_livable_area),
@@ -1116,6 +1127,9 @@ cd_m7
 - Q-Q plots assess normality of residuals. Deviations at the tails are common with large real estate datasets due to luxury properties.
 - Cook's distance identifies influential observations that disproportionately affect model estimates. Points above the threshold (4/n) warrant further inspection.
 
+---
+
+## Phase 7: Conclusions & Recommendations
 
 
 ---

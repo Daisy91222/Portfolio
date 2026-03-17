@@ -24,9 +24,9 @@ website:
           text: "Lab 2: Spatial Analysis and Visualization"
       - text: Midterm Project
         menu:
-          - href: Daisy_Yuan_Appendix.html
+          - href: lab3/Daisy_Yuan_Appendix.html
             text: "Technical Appendix"
-          - href: Daisy_Yuan_Presentation.html
+          - href: lab3/Daisy_Yuan_Presentation.html
             text: "Presentation Slides"
 format:
   html:

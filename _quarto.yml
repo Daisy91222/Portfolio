@@ -22,8 +22,8 @@ website:
           text: "Lab 1: Census Data Quality for Policy Decisions"
         - href: lab_2/lab2_template.qmd
           text: "Lab 2: Spatial Analysis and Visualization"
-        - href: lab_3/Daisy_Yuan_Presentation.qmd
-          text: "Midterm Challenge: Philadelphia Housing Price Prediction"
+        - href: Daisy_Yuan_Presentation.html
+          text: "Midterm: Philadelphia Housing Price Prediction"
 format:
   html:
     theme: cosmo

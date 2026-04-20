@@ -8,6 +8,7 @@ project:
     - "lab_2/lab2_template.qmd"
     - "lab_3/Daisy_Yuan_Appendix.qmd"
     - "lab_4/lab_4_Daisy.qmd"
+    - "lab_5/lab_5.qmd"
 
 website:
   title: "Daisy Yuan - CPLN 5920 Portfolio"
@@ -25,8 +26,9 @@ website:
           text: "Lab 2: Spatial Analysis and Visualization"
         - href: lab_4/lab_4_Daisy.qmd
           text: "Lab 4: Spatial Predictive Analysis"
-      - text: Midterm Project
-        menu:
+        - href: lab_5/lab_5.qmd
+          text: "Lab 5: Bikeshare Spacetime Prediction"
+          menu:
           - href: lab_3/Daisy_Yuan_Appendix.html
             text: "Technical Appendix"
           - href: lab_3/Daisy_Yuan_Presentation.html

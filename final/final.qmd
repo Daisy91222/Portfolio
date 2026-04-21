@@ -1,0 +1,95 @@
+---
+title: "Final"
+editor: visual
+---
+
+# SET UP
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(tigris)
+library(here)
+library(scales)
+
+Sys.setlocale("LC_TIME", "English")
+```
+
+# Data Cleaning
+
+```{r}
+# load data (https://evictionlab.org/eviction-tracking/get-the-data/)
+eviction_0 <- read.csv(here("data/philadelphia_monthly_2020_2021.csv"))
+glimpse(eviction_0)
+
+## trends of month
+monthly_total <- eviction_0 %>%
+  mutate(date = my(month)) %>%
+  group_by(date) %>%
+  summarise(total_filings = sum(filings_2020, na.rm = TRUE)) %>%
+  arrange(date)
+
+ggplot(monthly_total, aes(x = date, y = total_filings)) +
+  geom_line(color = "#2c7bb6", linewidth = 1) +
+  geom_point(color = "#2c7bb6", size = 2.5) +
+  geom_smooth(method = "loess", se = TRUE, 
+              color = "#d7191c", linetype = "dashed", alpha = 0.15) +
+  geom_text(data = monthly_total %>% slice_max(total_filings, n = 1),
+            aes(label = paste0(format(date, "%b %Y"), "\n", total_filings)),
+            vjust = -1, size = 3.5, color = "#d7191c") +
+  
+  scale_x_date(date_breaks = "2 months", date_labels = "%b\n%Y") +
+  labs(
+    title = "Monthly Eviction Filings (after 2020)",
+    x = NULL, y = "Total Filings"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+**WRITING:** ... so we know we want data from 2023 Mar to 2026 Mar bc the data is stable and share similar charcteristics ...
+
+```{r}
+# filter data
+results <- list()
+
+## Step 1: original
+results[["0_original"]] <- nrow(eviction_0)
+
+## Step 2: date filter
+eviction_step1 <- eviction_0 %>%
+  filter(between(my(month), my("03/2023"), my("03/2026")))
+results[["1_2023Mar_2026Mar"]] <- nrow(eviction_step1)
+
+## Step 3: GEOID != "sealed"
+eviction_step2 <- eviction_step1 %>%
+  filter(GEOID != "sealed")
+results[["2_geoid_not_sealed"]] <- nrow(eviction_step2)
+
+## Step 4: remove tracts where total filings = 0
+eviction <- eviction_step2 %>%
+  group_by(GEOID) %>%
+  filter(sum(filings_2020, na.rm = TRUE) != 0) %>%
+  ungroup()
+results[["3_tract_total_not_0"]] <- nrow(eviction)
+
+## Summary table
+tibble(
+  step = names(results),
+  remaining = unlist(results)
+) %>%
+  mutate(removed = lag(remaining, default = first(remaining)) - remaining)
+
+```
+
+# EDA
+
+## Spatial Characteristics
+
+## Temporal Characteristics
+
+## 
+
+
+
+#

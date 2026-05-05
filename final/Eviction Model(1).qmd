@@ -1,16 +1,17 @@
 ---
 title: "Philadelphia Eviction Predicting Model"
 author: "Daisy, Gab, Johnny, Yiting"
-date: "April 28, 2026"
+date: today
 format: 
   html:
     code-fold: show
     toc: true
     toc-location: left
     theme: cosmo
-editor: 
-  markdown: 
-    wrap: sentence
+    embed-resources: true
+execute:
+  warning: false
+  message: false
 ---
 
 # 1 SET UP

@@ -9,6 +9,7 @@ project:
     - "lab_3/Daisy_Yuan_Appendix.qmd"
     - "lab_4/lab_4_Daisy.qmd"
     - "lab_5/lab_5.qmd"
+    - "final/Eviction Model(1).qmd"
 
 website:
   title: "Daisy Yuan - CPLN 5920 Portfolio"

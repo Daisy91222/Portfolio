@@ -1132,6 +1132,19 @@ cd_m7
 
 ## Phase 7: Conclusions & Recommendations
 
+**Model Accuracy** RMSE = 0.422 (log scale), R-squared = 0.627 (10-fold CV)
+
+**Top Predictors**
+
+- Neighborhood fixed effects (largest single gain: R-squared 0.582 -> 0.627)
+- Living area (coef = 0.538): strongest structural predictor
+- BA+ education share (coef = 0.428) & poverty rate (coef = -0.146): socioeconomics outweigh physical amenities
+
+**Key Recommendations**
+
+- Current AVM likely undervalues transit-accessible and gentrifying properties
+- Sub-models by neighborhood type would improve accuracy in rapidly changing markets
+- Flag high-residual properties for manual review before formal tax assessment
 
 ---
 
